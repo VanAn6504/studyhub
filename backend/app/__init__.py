@@ -1,0 +1,1 @@
+"""StudyHub foundation application."""

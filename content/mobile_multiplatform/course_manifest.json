@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "prepared_on": "2026-10-03",
+  "id": "MOBILE_MULTIPLATFORM",
+  "title": "Phát triển ứng dụng di động đa nền tảng",
+  "status": "selected_course_draft_content",
+  "source_directory_from_repo_root": "../Phát triển ứng dụng di động đa nền tảng",
+  "source_rights_public_distribution": "not_confirmed",
+  "page_numbering": "one_based_pdf_pages",
+  "course_run_start_date": null,
+  "documents": [
+    {
+      "id": "CH01",
+      "filename": "Chapter 1 - Flutter Dart Overview.pdf",
+      "page_count": 62,
+      "sha256": "8f118dcdf057b2f2dd0836b1371abc29c3557d6cd87ceac64765c95cbc8aa7b9",
+      "version": 1,
+      "rag_status": "not_ingested"
+    },
+    {
+      "id": "CH02",
+      "filename": "Chapter 2 - Flutter Architecture.pdf",
+      "page_count": 65,
+      "sha256": "9b586aae17092b0d7e3a46b018654ab14f06dcd50c6acbf6d65dac544efb5276",
+      "version": 1,
+      "rag_status": "not_ingested"
+    },
+    {
+      "id": "CH03",
+      "filename": "Chapter 3 - Widgets  Layouts.pdf",
+      "page_count": 83,
+      "sha256": "360793e169012774074e26403eeb4b375ff36aed3df191362d94a8e818b18b43",
+      "version": 1,
+      "rag_status": "not_ingested"
+    },
+    {
+      "id": "CH04",
+      "filename": "Chapter 4 - ListView - GridView  Data Storage.pdf",
+      "page_count": 50,
+      "sha256": "f7f0d55809aa08e517397b26199677ba7c637127280148d97c0c1849a48e1390",
+      "version": 1,
+      "rag_status": "not_ingested"
+    },
+    {
+      "id": "CH05",
+      "filename": "Chapter 5 - Flutter Libraries  Native Code.pdf",
+      "page_count": 27,
+      "sha256": "a2782cad961119524a180e42f6fe265903828e1dbdac9bd478bfbaacf57ee33d",
+      "version": 1,
+      "rag_status": "not_ingested"
+    }
+  ],
+  "topics": [
+    {
+      "id": "FL01",
+      "title": "Tổng quan Flutter/Dart",
+      "order": 1,
+      "prerequisites": [],
+      "objectives": [
+        "Nhận biết Flutter là UI SDK và Dart là ngôn ngữ sử dụng.",
+        "Nêu một số đặc điểm chính của Dart."
+      ],
+      "resources": [
+        {
+          "document_id": "CH01",
+          "page_start": 3,
+          "page_end": 17
+        }
+      ],
+      "draft_question_count": 3
+    },
+    {
+      "id": "FL02",
+      "title": "Môi trường và tổ chức project",
+      "order": 2,
+      "prerequisites": [
+        "FL01"
+      ],
+      "objectives": [
+        "Nhận biết công cụ kiểm tra môi trường và vai trò lib/pubspec.yaml.",
+        "Phân biệt layer-first/feature-first và nguyên tắc clean code."
+      ],
+      "resources": [
+        {
+          "document_id": "CH02",
+          "page_start": 3,
+          "page_end": 64
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "FL03",
+      "title": "Widget tree, lifecycle và kiến trúc",
+      "order": 3,
+      "prerequisites": [
+        "FL01"
+      ],
+      "objectives": [
+        "Mô tả cây widget và vai trò build/dispose.",
+        "Nhận biết các lớp Framework, Engine, Embedder."
+      ],
+      "resources": [
+        {
+          "document_id": "CH01",
+          "page_start": 18,
+          "page_end": 40
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "FL04",
+      "title": "Widget, layout và navigation",
+      "order": 4,
+      "prerequisites": [
+        "FL02",
+        "FL03"
+      ],
+      "objectives": [
+        "Chọn thành phần Scaffold và layout phù hợp.",
+        "Mô tả vai trò Navigator trong điều hướng."
+      ],
+      "resources": [
+        {
+          "document_id": "CH01",
+          "page_start": 41,
+          "page_end": 59
+        },
+        {
+          "document_id": "CH03",
+          "page_start": 3,
+          "page_end": 46
+        }
+      ],
+      "draft_question_count": 5
+    },
+    {
+      "id": "FL05",
+      "title": "Animation và responsive/adaptive",
+      "order": 5,
+      "prerequisites": [
+        "FL04"
+      ],
+      "objectives": [
+        "Giải thích tween và sự khác biệt responsive/adaptive.",
+        "Chọn LayoutBuilder khi cần constraints từ widget cha."
+      ],
+      "resources": [
+        {
+          "document_id": "CH03",
+          "page_start": 47,
+          "page_end": 82
+        }
+      ],
+      "draft_question_count": 3
+    },
+    {
+      "id": "FL06",
+      "title": "ListView và GridView",
+      "order": 6,
+      "prerequisites": [
+        "FL04"
+      ],
+      "objectives": [
+        "Chọn ListView.builder/separated theo nhu cầu.",
+        "Nhận biết itemBuilder và crossAxisCount khi cuộn dọc."
+      ],
+      "resources": [
+        {
+          "document_id": "CH04",
+          "page_start": 3,
+          "page_end": 28
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "FL07",
+      "title": "Quản lý state",
+      "order": 7,
+      "prerequisites": [
+        "FL03",
+        "FL04"
+      ],
+      "objectives": [
+        "Nhận biết vai trò setState và BLoC.",
+        "Phân biệt read/watch và notifyListeners trong Provider."
+      ],
+      "resources": [
+        {
+          "document_id": "CH04",
+          "page_start": 29,
+          "page_end": 50
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "FL08",
+      "title": "Package và HTTP",
+      "order": 8,
+      "prerequisites": [
+        "FL02",
+        "FL04"
+      ],
+      "objectives": [
+        "Khai báo dependency và lấy package.",
+        "Nhận biết request/response và chuyển URL thành Uri."
+      ],
+      "resources": [
+        {
+          "document_id": "CH05",
+          "page_start": 3,
+          "page_end": 22
+        }
+      ],
+      "draft_question_count": 3
+    }
+  ],
+  "demo_quiz_policy": {
+    "pass_percent": 70,
+    "minimum_questions_per_topic": 3,
+    "attempt_for_learning_path": "latest_completed_per_topic",
+    "not_attempted_state": "not_assessed",
+    "question_publication_requires_review": true
+  },
+  "unsupported_detailed_topics": [
+    "Data Storage/SQLite",
+    "Isolate",
+    "Platform channels/MethodChannel",
+    "Notes App",
+    "Device permission workflows"
+  ],
+  "notes": [
+    "Prerequisites guide remedial order; they do not prohibit opening documents.",
+    "Source ranges identify relevant sections, not verified RAG chunks.",
+    "Quiz measures basic knowledge for a demo, not complete programming competency."
+  ]
+}
