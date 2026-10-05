@@ -152,7 +152,7 @@ class TopicOutput(BaseModel):
     objectives: list[str]
     prerequisite_topic_ids: list[UUID]
     materials: list = Field(default_factory=list)
-    quiz: None = None
+    quiz: dict | None = None
 
 
 T = TypeVar("T")

@@ -57,6 +57,8 @@ def run_output(db: Session, run: CourseRun, course: Course) -> RunOutput:
 
 
 def topic_outputs(db: Session, topics: list[Topic]) -> list[TopicOutput]:
+    from app.resources import materials_for_topic
+    from app.quizzes import current_quiz, quiz_metadata
     prerequisites: dict[UUID, list[UUID]] = {topic.id: [] for topic in topics}
     if topics:
         edges = db.execute(
@@ -67,7 +69,7 @@ def topic_outputs(db: Session, topics: list[Topic]) -> list[TopicOutput]:
         ).all()
         for topic_id, prerequisite_id in edges:
             prerequisites[topic_id].append(prerequisite_id)
-    return [TopicOutput(id=topic.id, code=topic.code, title=topic.title, order_index=topic.order_index, objectives=topic.objectives, prerequisite_topic_ids=prerequisites[topic.id]) for topic in topics]
+    return [TopicOutput(id=topic.id, code=topic.code, title=topic.title, order_index=topic.order_index, objectives=topic.objectives, prerequisite_topic_ids=prerequisites[topic.id], materials=materials_for_topic(db, topic.id), quiz=quiz_metadata(db, current_quiz(db, topic.id))) for topic in topics]
 
 
 def ensure_dag(graph: dict[UUID, list[UUID]]):
@@ -135,8 +137,13 @@ def patch_run(run_id: UUID, body: RunPatch, context: AuthContext = Depends(requi
     run, course = owner_run(db, run_id, context.user.id, lock=True)
     if run.data_origin != "real":
         raise ApiError(409, "RUN_READ_ONLY", "Không chỉnh lượt học mô phỏng qua API.")
-    # This migration has no event or attempt tables. Their module must guard date/timezone
-    # changes under this same run lock once learning activity is introduced.
+    from app.learning_models import LearningEvent, QuizAttempt
+    changing_date = (body.course_run_start_date is not None and body.course_run_start_date != run.course_run_start_date) or (body.timezone is not None and body.timezone != run.timezone)
+    if changing_date:
+        enrollments = select(Enrollment.id).where(Enrollment.course_run_id == run.id)
+        has_activity = db.scalar(select(QuizAttempt.id).where(QuizAttempt.enrollment_id.in_(enrollments)).limit(1)) or db.scalar(select(LearningEvent.id).where(LearningEvent.enrollment_id.in_(enrollments)).limit(1))
+        if has_activity:
+            raise ApiError(409, "RUN_DATE_LOCKED", "Không đổi ngày bắt đầu hoặc múi giờ sau khi đã có bài làm/log.")
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(run, field, value)
     db.commit()

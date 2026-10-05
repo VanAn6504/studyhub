@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ApiError, errorMessage, listAll, request } from './api'
 import type { Course, CourseRun, Session, Topic } from './api'
+import LearningWorkspace from './LearningWorkspace'
 
 function Icon({
   name,
@@ -393,6 +394,7 @@ function Dashboard({
   const [topicLoading, setTopicLoading] = useState(false)
   const [topicError, setTopicError] = useState('')
   const [topicReload, setTopicReload] = useState(0)
+  const lastTopicPath = useRef('')
   const [createOpen, setCreateOpen] = useState(false)
   const [code, setCode] = useState('')
   const [startDate, setStartDate] = useState(localDate)
@@ -453,7 +455,10 @@ function Dashboard({
       : isTeacher && selectedCourseId
         ? `/courses/${selectedCourseId}/topics`
         : ''
-    setTopics([])
+    if (lastTopicPath.current !== path) {
+      setTopics([])
+      lastTopicPath.current = path
+    }
     setTopicError('')
     if (!path) {
       setTopicLoading(false)
@@ -931,6 +936,17 @@ function Dashboard({
                           error={topicError}
                           onRetry={() => setTopicReload((current) => current + 1)}
                         />
+                        {!topicError && topics.length > 0 && (
+                          <LearningWorkspace
+                            key={`${selectedRun?.course_id || selectedCourseId}:${selectedRunId}`}
+                            courseId={selectedRun?.course_id || selectedCourseId}
+                            run={selectedRun}
+                            topics={topics}
+                            session={session}
+                            onChanged={() => setTopicReload((current) => current + 1)}
+                            onExpired={onExpired}
+                          />
+                        )}
                       </section>
                     )}
                   </>

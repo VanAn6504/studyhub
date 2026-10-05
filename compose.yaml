@@ -7,11 +7,18 @@ x-backend: &backend
   environment:
     DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-studyhub}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-studyhub}
     COURSE_MANIFEST_PATH: /content/mobile_multiplatform/course_manifest.json
+    PDF_STORAGE_PATH: /data/pdfs
   volumes:
     - ./content:/content:ro
     - pdf_storage:/data/pdfs
 
 services:
+  storage-init:
+    <<: *backend
+    user: "0:0"
+    command: ["chown", "10001:10001", "/data/pdfs"]
+    restart: "no"
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -42,6 +49,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
+      storage-init:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
     healthcheck:

@@ -38,7 +38,7 @@ def register_error_handlers(app):
 
     @app.exception_handler(HTTPException)
     async def handle_http(request: Request, exc: HTTPException):
-        messages = {404: "Không tìm thấy tài nguyên.", 405: "Phương thức không được hỗ trợ."}
+        messages = {404: "Không tìm thấy tài nguyên.", 405: "Phương thức không được hỗ trợ.", 413: "Yêu cầu vượt giới hạn upload PDF 20 MiB."}
         return error_response(request, exc.status_code, "HTTP_ERROR", messages.get(exc.status_code, "Yêu cầu không hợp lệ."))
 
     @app.exception_handler(IntegrityError)

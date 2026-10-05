@@ -19,8 +19,27 @@ export type Topic = {
   order_index: number
   objectives: string[]
   prerequisite_topic_ids: string[]
-  materials: unknown[]
-  quiz: unknown | null
+  materials: Material[]
+  quiz: QuizMetadata | null
+}
+export type Material = {
+  document_version_id: string
+  document_code: string
+  title: string
+  version: number
+  page_start: number
+  page_end: number
+  page_count: number
+  order_index: number
+}
+export type QuizMetadata = {
+  id: string
+  published_version_id: string
+  version: number
+  status: 'draft' | 'published' | 'retired'
+  question_count: number
+  pass_percent: number
+  min_questions: number
 }
 type Page<T> = { items: T[]; total: number; limit: number; offset: number }
 
@@ -35,11 +54,16 @@ export class ApiError extends Error {
   }
 }
 
-type RequestOptions = { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; csrfToken?: string }
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT'
+  body?: unknown
+  csrfToken?: string
+}
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  const multipart = options.body instanceof FormData
+  if (options.body !== undefined && !multipart) headers['Content-Type'] = 'application/json'
   if (options.csrfToken) headers['X-CSRF-Token'] = options.csrfToken
   let response: Response
   try {
@@ -47,7 +71,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       method: options.method || 'GET',
       credentials: 'same-origin',
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: multipart
+        ? (options.body as FormData)
+        : options.body !== undefined
+          ? JSON.stringify(options.body)
+          : undefined,
     })
   } catch {
     throw new ApiError(

@@ -1,0 +1,310 @@
+.learning-workspace {
+  margin-top: 32px;
+  padding: 28px;
+  border: 1px solid #dce4dc;
+  border-radius: 20px;
+  background: #fff;
+}
+.learning-heading,
+.history-row,
+.document-version {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.learning-workspace h3 {
+  font-size: 19px;
+  margin: 12px 0;
+}
+.learning-workspace h4 {
+  margin: 16px 0;
+}
+.learning-workspace details {
+  margin: 14px 0;
+  padding: 12px 16px;
+  border: 1px solid #dce4dc;
+  border-radius: 12px;
+}
+.learning-workspace summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.learning-form {
+  margin-top: 16px;
+}
+.learning-form fieldset {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.learning-form label,
+.quiz-version-select,
+.draft-import {
+  display: grid;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.learning-form input,
+.learning-form select,
+.learning-form textarea,
+.quiz-version-select select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #cdd8ce;
+  border-radius: 8px;
+  background: #fff;
+  color: #203f31;
+  font: inherit;
+}
+.learning-form textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.learning-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.document-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.document-card,
+.student-report {
+  border: 1px solid #dce4dc;
+  border-radius: 12px;
+  padding: 18px;
+  overflow-wrap: anywhere;
+}
+.document-card h3 {
+  font-size: 16px;
+}
+.document-version {
+  margin: 8px 0;
+  font-size: 14px;
+}
+.text-button {
+  border: none;
+  background: transparent;
+  color: #246148;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 6px;
+}
+.text-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.document-actions {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #e0e8e0;
+  padding-top: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.document-actions input,
+.draft-import input {
+  max-width: 100%;
+  font: inherit;
+}
+.pdf-viewer {
+  margin: 24px 0;
+  padding: 18px;
+  border-radius: 14px;
+  background: #eef3ef;
+}
+.pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.pdf-toolbar input {
+  width: 65px;
+  padding: 8px;
+  border: 1px solid #cdd8ce;
+  border-radius: 6px;
+}
+.pdf-toolbar label {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.pdf-canvas-container {
+  width: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+.pdf-canvas-container canvas {
+  display: block;
+  max-width: 100%;
+  margin: auto;
+  background: white;
+}
+.pdf-text p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.topic-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 18px;
+}
+.topic-learning-content {
+  border-top: 1px solid #e0e8e0;
+  padding-top: 14px;
+}
+.topic-material-list > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0;
+  font-size: 14px;
+}
+.teacher-quiz-editor {
+  margin-top: 24px;
+}
+.draft-import {
+  margin: 18px 0;
+}
+.question-select {
+  border-bottom: 1px solid #e0e8e0;
+  padding: 12px 0;
+}
+.question-select > label,
+.review-confirm {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.6;
+}
+.question-select input,
+.review-confirm input,
+.quiz-option input {
+  accent-color: #246148;
+  flex-shrink: 0;
+  margin-top: 5px;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+}
+.quiz-version-select {
+  margin-top: 20px;
+}
+.review-confirm {
+  margin: 18px 0;
+}
+.quiz-start {
+  padding: 12px 0;
+}
+.quiz-question {
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid #dce4dc;
+  border-radius: 12px;
+  min-width: 0;
+}
+.quiz-question legend {
+  padding: 0 8px;
+  font-weight: 600;
+  line-height: 1.6;
+  max-width: 100%;
+}
+.quiz-option {
+  display: flex;
+  flex-direction: row;
+  font-weight: 400;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+.correct-option {
+  background: #e6f2e9;
+  color: #1d573c;
+}
+.answer-explanation {
+  border-top: 1px solid #dce4dc;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.score-card {
+  border: 1px solid #bdd9c4;
+  background: #eff8f1;
+  padding: 20px;
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+}
+.score-card > strong {
+  font-size: 32px;
+  color: #246148;
+}
+.learning-history,
+.learning-report {
+  margin-top: 28px;
+  border-top: 1px solid #e0e8e0;
+  padding-top: 16px;
+}
+.history-row {
+  padding: 12px 0;
+  border-bottom: 1px solid #e0e8e0;
+}
+.history-row small {
+  display: block;
+  margin-top: 5px;
+  color: #637569;
+}
+.student-report {
+  margin: 12px 0;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .learning-workspace {
+    padding: 16px;
+  }
+  .learning-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .pdf-viewer {
+    padding: 8px;
+  }
+  .pdf-toolbar {
+    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pdf-toolbar label {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+  .pdf-toolbar .button {
+    padding: 8px;
+    font-size: 12px;
+  }
+  .quiz-question {
+    padding: 12px;
+  }
+}

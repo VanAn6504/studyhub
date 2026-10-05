@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080"
     cookie_secure: bool = False
+    pdf_storage_path: Path = REPO_ROOT / ".local" / "pdfs"
     auth_rate_limit: int = Field(default=20, ge=1, le=1000)
     auth_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
 

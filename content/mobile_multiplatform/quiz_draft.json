@@ -1,0 +1,698 @@
+{
+  "schema_version": 1,
+  "course_id": "MOBILE_MULTIPLATFORM",
+  "prepared_on": "2026-10-03",
+  "status": "draft_requires_content_review",
+  "questions": [
+    {
+      "id": "MM_Q001",
+      "version": 1,
+      "topic_id": "FL01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Theo tài liệu, Flutter sử dụng ngôn ngữ lập trình nào?",
+      "options": {
+        "A": "C#",
+        "B": "Dart",
+        "C": "Kotlin",
+        "D": "Swift"
+      },
+      "correct_option": "B",
+      "explanation": "Flutter sử dụng Dart; Dart cũng được giới thiệu riêng trong phần tổng quan.",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 5
+        }
+      ]
+    },
+    {
+      "id": "MM_Q002",
+      "version": 1,
+      "topic_id": "FL01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Flutter được giới thiệu là loại công cụ nào?",
+      "options": {
+        "A": "Công cụ chỉ biên dịch ứng dụng iOS",
+        "B": "Giao thức truyền dữ liệu mạng",
+        "C": "SDK giao diện mã nguồn mở để xây dựng ứng dụng đa nền tảng",
+        "D": "Hệ quản trị cơ sở dữ liệu quan hệ"
+      },
+      "correct_option": "C",
+      "explanation": "Phần tổng quan mô tả Flutter là UI SDK dùng chung một codebase cho nhiều nền tảng.",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 5
+        }
+      ]
+    },
+    {
+      "id": "MM_Q003",
+      "version": 1,
+      "topic_id": "FL01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Cặp cơ chế biên dịch nào được nêu trong các đặc điểm của Dart?",
+      "options": {
+        "A": "SQL và NoSQL",
+        "B": "HTTP và HTTPS",
+        "C": "MVC và MVVM",
+        "D": "JIT và AOT"
+      },
+      "correct_option": "D",
+      "explanation": "Dart được giới thiệu với JIT (Just-In-Time) và AOT (Ahead-Of-Time).",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 9
+        }
+      ]
+    },
+    {
+      "id": "MM_Q004",
+      "version": 1,
+      "topic_id": "FL02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Lệnh nào phù hợp để kiểm tra tình trạng thiết lập môi trường Flutter?",
+      "options": {
+        "A": "flutter doctor",
+        "B": "flutter pub add doctor",
+        "C": "dart format doctor",
+        "D": "flutter clean doctor"
+      },
+      "correct_option": "A",
+      "explanation": "Tài liệu đưa flutter doctor như một lệnh kiểm tra thiết lập sau khi cấu hình PATH.",
+      "sources": [
+        {
+          "document_id": "CH02",
+          "pdf_page": 10
+        }
+      ]
+    },
+    {
+      "id": "MM_Q005",
+      "version": 1,
+      "topic_id": "FL02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Trong cấu trúc project được giới thiệu, thư mục nào chứa mã nguồn Dart của ứng dụng?",
+      "options": {
+        "A": "assets",
+        "B": "lib",
+        "C": "android",
+        "D": "ios"
+      },
+      "correct_option": "B",
+      "explanation": "lib chứa mã nguồn Dart; android và ios chứa phần cấu hình dự án theo nền tảng.",
+      "sources": [
+        {
+          "document_id": "CH02",
+          "pdf_page": 36
+        }
+      ]
+    },
+    {
+      "id": "MM_Q006",
+      "version": 1,
+      "topic_id": "FL02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Trong cách tổ chức feature-first, mã riêng của chức năng đăng nhập thường được nhóm thế nào?",
+      "options": {
+        "A": "Tất cả đặt trong thư mục assets",
+        "B": "Chỉ được đặt trực tiếp trong pubspec.yaml",
+        "C": "Trong thư mục của tính năng authentication, gồm các phần như screens/widgets/models",
+        "D": "Tất cả đặt trong thư mục ios"
+      },
+      "correct_option": "C",
+      "explanation": "Feature-first nhóm các thành phần theo từng tính năng; authentication là ví dụ trong tài liệu.",
+      "sources": [
+        {
+          "document_id": "CH02",
+          "pdf_page": 41
+        }
+      ]
+    },
+    {
+      "id": "MM_Q007",
+      "version": 1,
+      "topic_id": "FL02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Nguyên tắc Single Responsibility trong phần clean code nhấn mạnh điều gì?",
+      "options": {
+        "A": "Mỗi lớp phải chứa toàn bộ chức năng ứng dụng",
+        "B": "Mỗi hàm phải dài hơn 100 dòng",
+        "C": "Mọi biến phải dùng kiểu dynamic",
+        "D": "Mỗi hàm hoặc lớp có một mục đích chính"
+      },
+      "correct_option": "D",
+      "explanation": "Bảng nguyên tắc diễn đạt Single Responsibility là một mục đích cho mỗi hàm/lớp.",
+      "sources": [
+        {
+          "document_id": "CH02",
+          "pdf_page": 52
+        }
+      ]
+    },
+    {
+      "id": "MM_Q008",
+      "version": 1,
+      "topic_id": "FL03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Cách mô tả nào phù hợp với widget tree?",
+      "options": {
+        "A": "Widget cha chứa widget con, và widget con có thể tiếp tục chứa widget khác",
+        "B": "Mọi widget đều phải là nút gốc độc lập",
+        "C": "Widget tree chỉ lưu dữ liệu HTTP",
+        "D": "Mỗi màn hình chỉ có đúng một widget"
+      },
+      "correct_option": "A",
+      "explanation": "Widget tree tổ chức giao diện theo quan hệ cha-con, có thể lồng nhiều cấp.",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 26
+        }
+      ]
+    },
+    {
+      "id": "MM_Q009",
+      "version": 1,
+      "topic_id": "FL03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Phương thức nào xây dựng mô tả giao diện và được gọi khi widget cần rebuild?",
+      "options": {
+        "A": "Uri.parse()",
+        "B": "build()",
+        "C": "dispose()",
+        "D": "deactivate()"
+      },
+      "correct_option": "B",
+      "explanation": "Phần lifecycle mô tả build được dùng khi widget được xây dựng lại.",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 33
+        }
+      ]
+    },
+    {
+      "id": "MM_Q010",
+      "version": 1,
+      "topic_id": "FL03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Khi đối tượng State bị loại khỏi cây vĩnh viễn, phương thức nào phù hợp để giải phóng tài nguyên đã tạo?",
+      "options": {
+        "A": "build()",
+        "B": "didUpdateWidget()",
+        "C": "dispose()",
+        "D": "createState()"
+      },
+      "correct_option": "C",
+      "explanation": "dispose là nơi giải phóng tài nguyên khi State không còn được dùng, ví dụ tài nguyên animation.",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 37
+        }
+      ]
+    },
+    {
+      "id": "MM_Q011",
+      "version": 1,
+      "topic_id": "FL03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Lớp nào trong kiến trúc Flutter được mô tả là viết bằng Dart và cung cấp các thư viện Material/Cupertino?",
+      "options": {
+        "A": "Engine",
+        "B": "Embedder",
+        "C": "Android Manifest",
+        "D": "Framework"
+      },
+      "correct_option": "D",
+      "explanation": "Framework là lớp cấp cao viết bằng Dart, cung cấp thư viện và công cụ dựng giao diện.",
+      "sources": [
+        {
+          "document_id": "CH01",
+          "pdf_page": 38
+        }
+      ]
+    },
+    {
+      "id": "MM_Q012",
+      "version": 1,
+      "topic_id": "FL04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Thuộc tính nào của Scaffold chứa phần nội dung chính của trang?",
+      "options": {
+        "A": "body",
+        "B": "appBar",
+        "C": "drawer",
+        "D": "floatingActionButton"
+      },
+      "correct_option": "A",
+      "explanation": "body là vùng nội dung chính; các thuộc tính còn lại phục vụ thanh trên, menu bên hoặc nút nổi.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 11
+        }
+      ]
+    },
+    {
+      "id": "MM_Q013",
+      "version": 1,
+      "topic_id": "FL04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Thuộc tính nào của Scaffold dùng để thêm thanh trên chứa tiêu đề và các thao tác?",
+      "options": {
+        "A": "resizeToAvoidBottomInset",
+        "B": "appBar",
+        "C": "body",
+        "D": "backgroundColor"
+      },
+      "correct_option": "B",
+      "explanation": "appBar nhận thanh AppBar ở phần trên của Scaffold.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 10
+        }
+      ]
+    },
+    {
+      "id": "MM_Q014",
+      "version": 1,
+      "topic_id": "FL04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Bạn cần đặt ba nút cạnh nhau theo chiều ngang. Widget nào phù hợp nhất?",
+      "options": {
+        "A": "Stack",
+        "B": "Form",
+        "C": "Row",
+        "D": "Column"
+      },
+      "correct_option": "C",
+      "explanation": "Row bố trí các widget theo chiều ngang; Column bố trí theo chiều dọc.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 22
+        }
+      ]
+    },
+    {
+      "id": "MM_Q015",
+      "version": 1,
+      "topic_id": "FL04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Bạn cần chồng một nhãn lên trên ảnh. Widget layout nào phù hợp nhất?",
+      "options": {
+        "A": "Row",
+        "B": "Column",
+        "C": "TextField",
+        "D": "Stack"
+      },
+      "correct_option": "D",
+      "explanation": "Stack cho phép các widget nằm chồng lên nhau theo các lớp.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 22
+        }
+      ]
+    },
+    {
+      "id": "MM_Q016",
+      "version": 1,
+      "topic_id": "FL04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Navigator được giới thiệu có vai trò nào?",
+      "options": {
+        "A": "Quản lý stack các route để điều hướng giữa các trang",
+        "B": "Tự lưu dữ liệu vào SQLite",
+        "C": "Tải package từ pub.dev",
+        "D": "Biên dịch Dart thành mã native"
+      },
+      "correct_option": "A",
+      "explanation": "Navigator quản lý stack route; các thao tác điều hướng thay đổi stack này.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 40
+        }
+      ]
+    },
+    {
+      "id": "MM_Q017",
+      "version": 1,
+      "topic_id": "FL05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Tween được dùng cho mục đích nào trong animation?",
+      "options": {
+        "A": "Thay thế mọi widget cuộn",
+        "B": "Nội suy giá trị trong một khoảng",
+        "C": "Khai báo quyền Internet",
+        "D": "Quản lý dependency"
+      },
+      "correct_option": "B",
+      "explanation": "Tài liệu mô tả Tween hữu ích khi cần nội suy qua một khoảng giá trị.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 52
+        }
+      ]
+    },
+    {
+      "id": "MM_Q018",
+      "version": 1,
+      "topic_id": "FL05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Theo tài liệu, phát biểu nào phân biệt responsive và adaptive phù hợp nhất?",
+      "options": {
+        "A": "Responsive quản lý state; adaptive quản lý HTTP",
+        "B": "Hai khái niệm chỉ khác nhau ở màu nền",
+        "C": "Responsive điều chỉnh cách bố trí theo không gian; adaptive chọn cách bố trí/tương tác phù hợp để sử dụng",
+        "D": "Responsive chỉ dùng cho Android; adaptive chỉ dùng cho iOS"
+      },
+      "correct_option": "C",
+      "explanation": "Phần này phân biệt việc đặt giao diện vừa không gian và việc chọn giao diện/cách tương tác dễ sử dụng trong không gian đó.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 58
+        }
+      ]
+    },
+    {
+      "id": "MM_Q019",
+      "version": 1,
+      "topic_id": "FL05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Bạn cần biết giới hạn kích thước do widget cha cấp cho một vùng giao diện. Công cụ nào phù hợp?",
+      "options": {
+        "A": "Navigator",
+        "B": "ChangeNotifierProvider",
+        "C": "Uri.parse",
+        "D": "LayoutBuilder"
+      },
+      "correct_option": "D",
+      "explanation": "LayoutBuilder cung cấp BoxConstraints từ widget cha tại vị trí của nó trong widget tree.",
+      "sources": [
+        {
+          "document_id": "CH03",
+          "pdf_page": 68
+        }
+      ]
+    },
+    {
+      "id": "MM_Q020",
+      "version": 1,
+      "topic_id": "FL06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Theo tài liệu, constructor nào phù hợp cho danh sách lớn hoặc động, dựng item theo builder?",
+      "options": {
+        "A": "ListView.builder()",
+        "B": "GridView.count()",
+        "C": "Column()",
+        "D": "Text()"
+      },
+      "correct_option": "A",
+      "explanation": "ListView.builder được giới thiệu cho danh sách lớn/động với hàm dựng item.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 5
+        }
+      ]
+    },
+    {
+      "id": "MM_Q021",
+      "version": 1,
+      "topic_id": "FL06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Trong ListView.builder, tham số nào là hàm dựng từng item từ context và index?",
+      "options": {
+        "A": "controller",
+        "B": "itemBuilder",
+        "C": "separatorBuilder",
+        "D": "scrollDirection"
+      },
+      "correct_option": "B",
+      "explanation": "itemBuilder là hàm dựng từng phần tử; index xác định vị trí phần tử cần dựng.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 11
+        }
+      ]
+    },
+    {
+      "id": "MM_Q022",
+      "version": 1,
+      "topic_id": "FL06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Bạn cần danh sách có đường phân cách giữa các phần tử. Cặp constructor/tham số nào phù hợp?",
+      "options": {
+        "A": "GridView.count() và drawer",
+        "B": "Column() và notifyListeners",
+        "C": "ListView.separated() và separatorBuilder",
+        "D": "ListView.builder() và appBar"
+      },
+      "correct_option": "C",
+      "explanation": "separatorBuilder dựng thành phần phân cách giữa các item của ListView.separated.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 13
+        }
+      ]
+    },
+    {
+      "id": "MM_Q023",
+      "version": 1,
+      "topic_id": "FL06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Với GridView.count cuộn theo chiều dọc, bạn muốn 3 cột. Cấu hình nào phù hợp?",
+      "options": {
+        "A": "mainAxisSpacing: 3",
+        "B": "crossAxisSpacing: 3",
+        "C": "childAspectRatio: 3",
+        "D": "crossAxisCount: 3"
+      },
+      "correct_option": "D",
+      "explanation": "Khi cuộn dọc, trục chéo là chiều ngang; crossAxisCount xác định số cột, còn spacing chỉ là khoảng cách.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 22
+        }
+      ]
+    },
+    {
+      "id": "MM_Q024",
+      "version": 1,
+      "topic_id": "FL07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Vai trò chính của setState() được nêu trong phần StatefulWidget là gì?",
+      "options": {
+        "A": "Thông báo rằng state thay đổi và giao diện cần được rebuild",
+        "B": "Tải thư viện về project",
+        "C": "Xóa mọi route của Navigator",
+        "D": "Tạo kết nối SQLite tự động"
+      },
+      "correct_option": "A",
+      "explanation": "setState thông báo việc cập nhật state để Flutter lên lịch dựng lại phần giao diện liên quan.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 33
+        }
+      ]
+    },
+    {
+      "id": "MM_Q025",
+      "version": 1,
+      "topic_id": "FL07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Trong BLoC được giới thiệu, luồng nào mô tả đúng vai trò của các thành phần?",
+      "options": {
+        "A": "BLoC chỉ thay thế pubspec.yaml",
+        "B": "Event được BLoC xử lý bằng business logic để phát ra State",
+        "C": "State biên dịch Dart để tạo Event",
+        "D": "Event luôn bỏ qua business logic và sửa trực tiếp file PDF"
+      },
+      "correct_option": "B",
+      "explanation": "Event là đầu vào; BLoC xử lý và phát ra state, giúp tách logic nghiệp vụ khỏi UI.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 38
+        }
+      ]
+    },
+    {
+      "id": "MM_Q026",
+      "version": 1,
+      "topic_id": "FL07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Cách phân biệt context.read và context.watch trong phần Provider là gì?",
+      "options": {
+        "A": "read chỉ đọc PDF; watch chỉ phát video",
+        "B": "Cả hai đều dùng để tải package",
+        "C": "read lấy giá trị không lắng nghe thay đổi; watch lắng nghe để widget cập nhật",
+        "D": "read luôn rebuild; watch không bao giờ lắng nghe"
+      },
+      "correct_option": "C",
+      "explanation": "Tài liệu phân biệt read với watch ở việc đăng ký lắng nghe thay đổi provider.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 48
+        }
+      ]
+    },
+    {
+      "id": "MM_Q027",
+      "version": 1,
+      "topic_id": "FL07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Trong lớp mở rộng ChangeNotifier, phương thức nào thông báo cho các đối tượng đang lắng nghe khi state đổi?",
+      "options": {
+        "A": "flutter doctor",
+        "B": "Uri.parse()",
+        "C": "Navigator.pop()",
+        "D": "notifyListeners()"
+      },
+      "correct_option": "D",
+      "explanation": "Sau cập nhật dữ liệu, notifyListeners thông báo để các widget lắng nghe phản ứng với thay đổi.",
+      "sources": [
+        {
+          "document_id": "CH04",
+          "pdf_page": 49
+        }
+      ]
+    },
+    {
+      "id": "MM_Q028",
+      "version": 1,
+      "topic_id": "FL08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "File nào được giới thiệu để khai báo dependency, assets và fonts cho project Flutter?",
+      "options": {
+        "A": "pubspec.yaml",
+        "B": "AndroidManifest.xml",
+        "C": "main.dart",
+        "D": "README.md"
+      },
+      "correct_option": "A",
+      "explanation": "pubspec.yaml là file cấu hình metadata, dependency, assets và fonts của project.",
+      "sources": [
+        {
+          "document_id": "CH05",
+          "pdf_page": 9
+        }
+      ]
+    },
+    {
+      "id": "MM_Q029",
+      "version": 1,
+      "topic_id": "FL08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Sau khi thêm package http vào dependencies theo hướng dẫn, lệnh nào lấy các dependency?",
+      "options": {
+        "A": "flutter clean",
+        "B": "flutter pub get",
+        "C": "flutter doctor",
+        "D": "dart format"
+      },
+      "correct_option": "B",
+      "explanation": "Hướng dẫn thêm http yêu cầu chạy flutter pub get sau khi khai báo dependency.",
+      "sources": [
+        {
+          "document_id": "CH05",
+          "pdf_page": 17
+        }
+      ]
+    },
+    {
+      "id": "MM_Q030",
+      "version": 1,
+      "topic_id": "FL08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "stem": "Trong ví dụ HTTP, cách nào chuyển chuỗi URL thành đối tượng Uri?",
+      "options": {
+        "A": "setState(url)",
+        "B": "notifyListeners(url)",
+        "C": "Uri.parse(url)",
+        "D": "Navigator.push(url)"
+      },
+      "correct_option": "C",
+      "explanation": "Phần request yêu cầu chuyển chuỗi URL thành Uri bằng Uri.parse; response chứa status code và body.",
+      "sources": [
+        {
+          "document_id": "CH05",
+          "pdf_page": 20
+        }
+      ]
+    }
+  ]
+}

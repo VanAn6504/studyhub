@@ -103,3 +103,7 @@ class TopicPrerequisite(Base):
     topic_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     prerequisite_topic_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     course_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+
+# Register the next module's tables with the same metadata for Alembic.
+from app import learning_models  # noqa: E402,F401

@@ -4,7 +4,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-RUN useradd --create-home studyhub && chown -R studyhub:studyhub /app
+RUN useradd --uid 10001 --create-home studyhub && mkdir -p /data/pdfs && chown -R studyhub:studyhub /app /data/pdfs
 USER studyhub
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

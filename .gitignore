@@ -1,4 +1,19 @@
 # Byte-compiled / optimized / DLL files
+# Local documentation and generated artifacts (see AGENTS.md)
+/docs/
+/ml/oulad_audit.json
+/ml/artifacts/
+/ml/runs/
+/ml/checkpoints/
+/uploads/
+/storage/
+/backups/
+/tmp/
+/temp/
+*.sql.gz
+*.dump
+*.bak
+
 ml/data/
 node_modules/
 frontend/dist/
