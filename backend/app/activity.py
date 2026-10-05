@@ -94,19 +94,24 @@ def list_events(run_id: UUID, limit: Limit = 20, offset: Offset = 0, context: Au
 
 @router.get('/course-runs/{run_id}/report')
 def report(run_id: UUID, limit: Limit = 20, offset: Offset = 0, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
-    run, _ = owner_run(db, run_id, context.user.id)
+    from app.paths import ensure_path, lock_enrollment
+    run, _ = owner_run(db, run_id, context.user.id, lock=True)
     query = select(Enrollment, User).join(User, User.id == Enrollment.student_id).where(Enrollment.course_run_id == run.id)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     rows = []
     for enrollment, user in db.execute(query.order_by(User.email, Enrollment.id).limit(limit).offset(offset)):
         page_views = db.scalar(select(func.count()).select_from(LearningEvent).where(LearningEvent.enrollment_id == enrollment.id, LearningEvent.type == 'page_view'))
-        attempts = db.scalars(select(QuizAttempt).where(QuizAttempt.enrollment_id == enrollment.id).order_by(QuizAttempt.started_at, QuizAttempt.id)).all()
+        attempts = db.scalars(select(QuizAttempt).where(QuizAttempt.enrollment_id == enrollment.id).order_by(QuizAttempt.graded_at.asc().nullsfirst(), QuizAttempt.id)).all()
         latest = {}
         for attempt in attempts:
             quiz = db.get(QuizVersion, attempt.quiz_version_id)
             if attempt.status == 'completed':
                 latest[quiz.topic_id] = attempt
+        lock_enrollment(db, run, enrollment)
+        path = ensure_path(db, run, enrollment)
         rows.append({'enrollment_id': enrollment.id, 'student_email': user.email, 'display_name': user.display_name,
                      'enrollment_status': enrollment.status, 'page_views': page_views, 'attempt_count': len(attempts),
-                     'latest_results': [attempt_output(db, attempt) for attempt in latest.values()]})
+                     'latest_results': [attempt_output(db, attempt) for attempt in latest.values()],
+                     'learning_path': path})
+    db.commit()
     return {'items': rows, 'total': total, 'limit': limit, 'offset': offset, 'data_origin': run.data_origin}

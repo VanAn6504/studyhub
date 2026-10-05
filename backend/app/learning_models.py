@@ -103,6 +103,7 @@ class QuizAttempt(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     graded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    path_revision: Mapped[int | None] = mapped_column(Integer)
 
 
 class AttemptRequest(Base):

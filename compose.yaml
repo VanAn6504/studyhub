@@ -8,9 +8,11 @@ x-backend: &backend
     DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-studyhub}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-studyhub}
     COURSE_MANIFEST_PATH: /content/mobile_multiplatform/course_manifest.json
     PDF_STORAGE_PATH: /data/pdfs
+    MODEL_ARTIFACT_PATH: /models/current
   volumes:
     - ./content:/content:ro
     - pdf_storage:/data/pdfs
+    - ./ml/artifacts:/models:ro
 
 services:
   storage-init:

@@ -197,7 +197,7 @@ def attempt_output(db, attempt):
     complete = attempt.status == 'completed'
     result = {'id': attempt.id, 'quiz_version_id': quiz.id, 'topic_id': quiz.topic_id, 'status': attempt.status,
               'answer_revision': attempt.answer_revision, 'started_at': attempt.started_at, 'completed_at': attempt.completed_at,
-              'graded_at': attempt.graded_at, 'pass_percent': quiz.pass_percent, 'items': []}
+              'graded_at': attempt.graded_at, 'path_revision': attempt.path_revision, 'pass_percent': quiz.pass_percent, 'items': []}
     for item, question in quiz_items(db, quiz.id):
         chosen = attempt.answers.get(str(item.id))
         row = {'quiz_version_item_id': item.id, 'stem': question.stem, 'options': question.options, 'selected_option': chosen}
@@ -271,7 +271,8 @@ def save_answers(attempt_id: UUID, body: AnswersInput, context: AuthContext = De
 
 @router.post('/attempts/{attempt_id}/submit')
 def submit_attempt(attempt_id: UUID, body: SubmitInput, context: AuthContext = Depends(get_auth), db: Session = Depends(get_db)):
-    attempt, _, _ = own_attempt(db, attempt_id, context, writing=True)
+    from app.paths import ensure_path
+    attempt, run, enrollment = own_attempt(db, attempt_id, context, writing=True)
     if attempt.status == 'completed':
         return attempt_output(db, attempt)
     check_revision(attempt, body.expected_revision)
@@ -280,6 +281,8 @@ def submit_attempt(attempt_id: UUID, body: SubmitInput, context: AuthContext = D
     attempt.total_questions = len(items)
     attempt.status = 'completed'
     attempt.completed_at = attempt.graded_at = utcnow()
+    db.flush()
+    attempt.path_revision = ensure_path(db, run, enrollment)['revision']
     db.commit()
     return attempt_output(db, attempt)
 

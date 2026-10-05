@@ -138,12 +138,15 @@ def patch_run(run_id: UUID, body: RunPatch, context: AuthContext = Depends(requi
     if run.data_origin != "real":
         raise ApiError(409, "RUN_READ_ONLY", "Không chỉnh lượt học mô phỏng qua API.")
     from app.learning_models import LearningEvent, QuizAttempt
+    from app.guidance_models import Prediction
     changing_date = (body.course_run_start_date is not None and body.course_run_start_date != run.course_run_start_date) or (body.timezone is not None and body.timezone != run.timezone)
     if changing_date:
         enrollments = select(Enrollment.id).where(Enrollment.course_run_id == run.id)
-        has_activity = db.scalar(select(QuizAttempt.id).where(QuizAttempt.enrollment_id.in_(enrollments)).limit(1)) or db.scalar(select(LearningEvent.id).where(LearningEvent.enrollment_id.in_(enrollments)).limit(1))
+        has_activity = (db.scalar(select(QuizAttempt.id).where(QuizAttempt.enrollment_id.in_(enrollments)).limit(1))
+                        or db.scalar(select(LearningEvent.id).where(LearningEvent.enrollment_id.in_(enrollments)).limit(1))
+                        or db.scalar(select(Prediction.id).where(Prediction.enrollment_id.in_(enrollments)).limit(1)))
         if has_activity:
-            raise ApiError(409, "RUN_DATE_LOCKED", "Không đổi ngày bắt đầu hoặc múi giờ sau khi đã có bài làm/log.")
+            raise ApiError(409, "RUN_DATE_LOCKED", "Không đổi ngày bắt đầu hoặc múi giờ sau khi đã có bài làm/log/dự báo.")
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(run, field, value)
     db.commit()

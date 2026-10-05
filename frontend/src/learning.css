@@ -308,3 +308,15 @@
     padding: 12px;
   }
 }
+.guidance-panel { border: 1px solid #cbdcd5; border-radius: 16px; padding: 22px; margin: 24px 0; background: #f7fbf8; }
+.path-states { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.path-state { padding: 6px 10px; border-radius: 10px; font-size: .86rem; background: #e8edf0; }
+.path-weak { background: #fff0da; color: #744505; }
+.path-mastered { background: #d9f2e4; color: #185b3a; }
+.path-steps { padding-left: 24px; }
+.path-steps li { border-bottom: 1px solid #dde5e1; padding: 12px 0; }
+.path-steps li button { margin: 4px 8px 4px 0; }
+.risk-panel { border-top: 1px solid #cbdcd5; padding-top: 12px; margin-top: 20px; overflow-wrap: anywhere; }
+.risk-score { font-size: 1.8rem; font-weight: 700; }
+.risk-score span { display: block; font-size: .9rem; font-weight: 500; }
+@media (max-width: 600px) { .guidance-panel { padding: 14px; } }

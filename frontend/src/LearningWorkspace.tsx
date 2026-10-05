@@ -12,6 +12,7 @@ import type {
 const PdfViewer = lazy(() => import('./PdfViewer'))
 import QuizPlayer from './QuizPlayer'
 import TeacherQuizEditor from './TeacherQuizEditor'
+import GuidancePanel, { stateLabels } from './GuidancePanel'
 import './learning.css'
 
 export default function LearningWorkspace({
@@ -54,6 +55,7 @@ export default function LearningWorkspace({
   const queue = useRef<LearningEventInput[]>([])
   const flushing = useRef(false)
   const mounted = useRef(true)
+  const topicAnchor = useRef<HTMLDivElement>(null)
   const csrfToken = session.csrf_token
   const canWrite = !teacher && run?.status === 'active' && run.data_origin === 'real'
   const fail = useCallback(
@@ -274,6 +276,12 @@ export default function LearningWorkspace({
         </p>
       )}
       {loading && <p role="status">Đang tải tài liệu và bài làm…</p>}
+      {!teacher && run && <GuidancePanel key={run.id} run={run} csrfToken={csrfToken} refresh={reload} topics={topics}
+        onExpired={onExpired} onTopic={id => {
+          setTopicId(id); setAttempt(null)
+          requestAnimationFrame(() => topicAnchor.current?.scrollIntoView({ block: 'start' }))
+        }}
+        onRead={material => setViewer({ versionId: material.document_version_id, title: material.title, page: material.page_start })} />}
       {teacher && (
         <details className="upload-section">
           <summary>Upload tài liệu PDF mới</summary>
@@ -439,7 +447,7 @@ export default function LearningWorkspace({
         ))}
       </div>
       {topic && (
-        <div className="topic-learning-content">
+        <div className="topic-learning-content" ref={topicAnchor}>
           <h3>
             {topic.code} · {topic.title}
           </h3>
@@ -609,6 +617,10 @@ export default function LearningWorkspace({
               <p>
                 {value.page_views} lượt xem trang · {value.attempt_count} bài làm
               </p>
+              <p>Lộ trình {value.learning_path.revision} · {value.learning_path.steps.length} bước học/ôn</p>
+              <div className="path-states">{value.learning_path.topic_states.map(item => <span className={`path-state path-${item.state}`} key={item.topic_id}>
+                {item.topic_code}: {stateLabels[item.state]}{item.score_percent !== null && ` ${item.score_percent.toFixed(1)}%`}
+              </span>)}</div>
               {value.latest_results.length ? (
                 value.latest_results.map((result) => (
                   <p key={result.id}>
