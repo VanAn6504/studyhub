@@ -49,6 +49,7 @@ export default function LearningWorkspace({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [reload, setReload] = useState(0)
+  const [activityReload, setActivityReload] = useState(0)
   const [file, setFile] = useState<File | null>(null)
   const [upload, setUpload] = useState({ code: '', title: '' })
   const [mapping, setMapping] = useState({ version: '', start: 1, end: 1 })
@@ -90,16 +91,6 @@ export default function LearningWorkspace({
           if (!stopped) setHistory(value)
         }),
       )
-      tasks.push(
-        request<{ items: ActivityEvent[]; total: number }>(
-          `/course-runs/${run.id}/events?limit=10`,
-        ).then((value) => {
-          if (!stopped) {
-            setEvents(value.items)
-            setEventCount(value.total)
-          }
-        }),
-      )
     }
     if (run && teacher)
       tasks.push(
@@ -118,6 +109,19 @@ export default function LearningWorkspace({
       stopped = true
     }
   }, [courseId, run?.id, teacher, reload])
+  useEffect(() => {
+    if (!run || teacher) return
+    let stopped = false
+    request<{ items: ActivityEvent[]; total: number }>(`/course-runs/${run.id}/events?limit=10`)
+      .then(value => {
+        if (!stopped) {
+          setEvents(value.items)
+          setEventCount(value.total)
+        }
+      })
+      .catch(failure => { if (!stopped) fail(failure) })
+    return () => { stopped = true }
+  }, [run?.id, teacher, reload, activityReload])
   function changed() {
     setReload((value) => value + 1)
     onChanged()
@@ -215,7 +219,7 @@ export default function LearningWorkspace({
         queue.current.splice(0, batch.length)
         if (mounted.current) setPending(queue.current.length)
       }
-      if (mounted.current) setReload((value) => value + 1)
+      if (mounted.current) setActivityReload((value) => value + 1)
     } catch (failure) {
       if (mounted.current)
         setLogError(
@@ -278,7 +282,7 @@ export default function LearningWorkspace({
         </p>
       )}
       {loading && <p role="status">Đang tải tài liệu và bài làm…</p>}
-      {!teacher && run && <GuidancePanel key={run.id} run={run} csrfToken={csrfToken} refresh={reload} topics={topics}
+      {!teacher && run && <GuidancePanel key={`guidance:${run.id}`} run={run} csrfToken={csrfToken} refresh={reload} activityRefresh={activityReload} topics={topics}
         onExpired={onExpired} onTopic={id => {
           setTopicId(id); setAttempt(null)
           requestAnimationFrame(() => topicAnchor.current?.scrollIntoView({ block: 'start' }))
@@ -413,7 +417,7 @@ export default function LearningWorkspace({
       {!run && teacher && (
         <p className="muted">Chọn một lượt học để xem thử PDF trong trình xem.</p>
       )}
-      {!teacher && run && <ChatPanel key={run.id} run={run} csrfToken={csrfToken} onExpired={onExpired}
+      {!teacher && run && <ChatPanel key={`chat:${run.id}`} run={run} csrfToken={csrfToken} onExpired={onExpired}
         onRead={citation => setViewer({ versionId: citation.document_version_id,
           title: `${citation.document_code} · ${citation.title} · bản ${citation.version}`, page: citation.pdf_page })} />}
       {viewer && run && (

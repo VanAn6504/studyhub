@@ -16,8 +16,8 @@ const featureLabels: Record<string, string> = {
   mean_assessment_score: 'Điểm trung bình lần đầu', has_assessment: 'Có kết quả quiz',
 }
 
-export default function GuidancePanel({ run, csrfToken, refresh, topics, onTopic, onRead, onExpired }: {
-  run: CourseRun; csrfToken: string; refresh: number; topics: Topic[];
+export default function GuidancePanel({ run, csrfToken, refresh, activityRefresh, topics, onTopic, onRead, onExpired }: {
+  run: CourseRun; csrfToken: string; refresh: number; activityRefresh: number; topics: Topic[];
   onTopic: (id: string) => void;
   onRead: (material: { document_version_id: string; title: string; page_start: number }) => void;
   onExpired: () => void;
@@ -27,26 +27,37 @@ export default function GuidancePanel({ run, csrfToken, refresh, topics, onTopic
   const [pathError, setPathError] = useState('')
   const [predictionError, setPredictionError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [predictionLoading, setPredictionLoading] = useState(true)
   const [computing, setComputing] = useState(false)
   const [reload, setReload] = useState(0)
   useEffect(() => {
     let stopped = false
     setLoading(true)
     setPathError('')
-    setPredictionError('')
-    const fail = (error: unknown, setter: (value: string) => void) => {
-      if (stopped) return
-      setter(errorMessage(error))
-      if (error instanceof ApiError && error.status === 401) onExpired()
-    }
-    Promise.allSettled([
-      request<LearningPath>(`/course-runs/${run.id}/learning-path`)
-        .then(value => { if (!stopped) setPath(value) }).catch(error => fail(error, setPathError)),
-      request<PredictionResult>(`/course-runs/${run.id}/prediction`)
-        .then(value => { if (!stopped) setPrediction(value) }).catch(error => fail(error, setPredictionError)),
-    ]).finally(() => { if (!stopped) setLoading(false) })
+    request<LearningPath>(`/course-runs/${run.id}/learning-path`)
+      .then(value => { if (!stopped) setPath(value) })
+      .catch(error => {
+        if (stopped) return
+        setPathError(errorMessage(error))
+        if (error instanceof ApiError && error.status === 401) onExpired()
+      })
+      .finally(() => { if (!stopped) setLoading(false) })
     return () => { stopped = true }
   }, [run.id, refresh, reload, topics])
+  useEffect(() => {
+    let stopped = false
+    setPredictionLoading(true)
+    setPredictionError('')
+    request<PredictionResult>(`/course-runs/${run.id}/prediction`)
+      .then(value => { if (!stopped) setPrediction(value) })
+      .catch(error => {
+        if (stopped) return
+        setPredictionError(errorMessage(error))
+        if (error instanceof ApiError && error.status === 401) onExpired()
+      })
+      .finally(() => { if (!stopped) setPredictionLoading(false) })
+    return () => { stopped = true }
+  }, [run.id, refresh, reload, activityRefresh])
   async function compute() {
     setComputing(true)
     setPredictionError('')
@@ -90,6 +101,7 @@ export default function GuidancePanel({ run, csrfToken, refresh, topics, onTopic
     <div className="risk-panel">
       <h3>Điểm rủi ro thử nghiệm</h3>
       <p className="muted">Mô hình học từ OULAD, chưa xác nhận trên sinh viên StudyHub. Điểm chưa hiệu chỉnh xác suất, không quyết định việc đạt từng chủ đề.</p>
+      {predictionLoading && <p role="status">Đang cập nhật dữ liệu hoạt động…</p>}
       {predictionError && <p className="notice notice-error" role="alert">{predictionError}</p>}
       {prediction?.status === 'not_ready' && <p>Chưa đủ thời gian: cần dữ liệu ngày 0–42. Có thể dự báo từ {new Date(prediction.cutoff_end_at).toLocaleString('vi-VN')}.</p>}
       {prediction?.status === 'not_computed' && <p>Chưa tính dự báo cho lượt học này.</p>}
@@ -103,7 +115,7 @@ export default function GuidancePanel({ run, csrfToken, refresh, topics, onTopic
           {prediction.explanation?.contributions.map(item => <p key={item.feature}>{featureLabels[item.feature]}: {item.value === null ? 'Thiếu dữ liệu' : item.value.toFixed(1)} · đóng góp {item.contribution >= 0 ? '+' : ''}{(item.contribution * 100).toFixed(2)} điểm</p>)}
         </details>
       </>}
-      {!loading && prediction?.status !== 'not_ready' && <button className="button button-secondary" disabled={computing} onClick={() => void compute()}>{computing ? 'Đang tính dự báo…' : 'Tính dự báo'}</button>}
+      {!predictionLoading && prediction?.status !== 'not_ready' && <button className="button button-secondary" disabled={computing} onClick={() => void compute()}>{computing ? 'Đang tính dự báo…' : 'Tính dự báo'}</button>}
     </div>
   </section>
 }

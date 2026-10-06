@@ -92,6 +92,17 @@ Set-Location frontend
 npm.cmd run build
 ```
 
+Kiểm thử hồi quy giao diện PDF/lộ trình/chatbot (frontend đang chạy ở port 5173; các API và PDF dùng fixture tổng hợp trong trình duyệt, không ghi database hoặc gọi Gemini):
+
+```powershell
+Set-Location frontend
+npm.cmd ci
+npx.cmd playwright install chromium
+npm.cmd run test:ui
+```
+
+Có thể chạy frontend bằng Docker hoặc `npm.cmd run dev`; kiểm thử dùng ứng dụng React và PDF.js thật. Đổi URL bằng `FRONTEND_URL`; dùng Edge đã cài trên Windows bằng `$env:PLAYWRIGHT_CHANNEL='msedge'`. Ca kiểm tra mở/đóng PDF nhiều lần, chuyển trang, nguồn từ lộ trình/chatbot, log và retry giữ ID, nộp quiz/cập nhật lộ trình, teacher không ghi log sinh viên, số lượng khối và lỗi console. Gửi log PDF chỉ cập nhật danh sách log và trạng thái dự báo liên quan hoạt động; không tải lại lộ trình, danh sách PDF hoặc kết quả quiz.
+
 Kiểm tra hợp đồng đặc trưng OULAD và split (fixture nhỏ, không cần dataset thật):
 
 ```powershell
