@@ -333,3 +333,17 @@
 .chat-history { max-height: 38rem; overflow: auto; }
 .rag-badge { display: inline-block; padding: .3rem .6rem; border-radius: 8px; background: #fff2d8; }
 .corpus-editor textarea, .chat-panel textarea { font: inherit; padding: .75rem; border: 1px solid var(--line); border-radius: 8px; background: white; resize: vertical; }
+.rag-document { border-top: 1px solid var(--line); padding: .8rem 0; width: 100%; min-width: 0; }
+.document-version-group { min-width: 0; }
+.rag-page-review { background: #f5f7fb; border-radius: 12px; padding: 1rem; }
+.rag-page-review label { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .8rem 0; }
+.rag-page-review label:has(input[type="checkbox"]) { flex-direction: row; flex-wrap: nowrap; }
+.rag-page-review input[type="checkbox"] { width: 16px; height: 16px; min-height: 16px; padding: 0; flex: 0 0 16px; accent-color: #246148; }
+.rag-page-review select, .rag-page-review textarea { width: 100%; min-width: 0; max-width: 100%; }
+.rag-page-review pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto; font: inherit; background: white; padding: .8rem; }
+.rag-page-review fieldset { border: 0; min-width: 0; padding: 0; }
+.rag-page-review textarea { font: inherit; padding: .7rem; }
+.document-card:has(.rag-page-review) { grid-column: 1 / -1; }
+.rag-source-comparison { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.rag-source-comparison > * { min-width: 0; margin-top: 0; }
+@media (max-width: 800px) { .rag-source-comparison { grid-template-columns: minmax(0, 1fr); } }

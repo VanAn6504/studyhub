@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import FileResponse
 from pypdf import PdfReader
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import chat_provider
@@ -18,7 +18,8 @@ from app.errors import ApiError
 from app.learning_models import Document, DocumentVersion
 from app.models import Enrollment
 from app.quizzes import student_enrollment
-from app.rag_models import ChatSession, ChatTurn, DocumentChunk
+from app.rag_models import ChatSession, ChatTurn, DocumentChunk, RagPreparation
+from app.rag_policy import eligible, eligible_clause
 from app.rag_retrieval import normalize, retrieve_hybrid
 from app.local_embeddings import get_encoder, unavailable as embedding_unavailable
 from app.rag_schemas import ManualChunkInput, MessageInput, ReviewInput
@@ -26,7 +27,7 @@ from app.resources import not_found
 from app.security import AuthContext, get_auth, require_teacher, utcnow
 
 router = APIRouter(tags=['rag'])
-INSUFFICIENT = 'Chưa có đoạn nguồn đã duyệt đủ chứng cứ cho câu hỏi này. Hãy đọc PDF hoặc nhờ giảng viên rà soát trang liên quan.'
+INSUFFICIENT = 'Chưa có nguồn đủ chứng cứ cho câu hỏi này. Hãy đọc PDF hoặc nhờ giảng viên kiểm tra trang liên quan.'
 
 
 def source_excerpt(text, quote):
@@ -56,7 +57,7 @@ def owned_version(db, version_id, context, lock=False):
 def chunk_output(chunk):
     return {key: getattr(chunk, key) for key in (
         'id', 'document_version_id', 'pdf_page', 'chunk_index', 'text', 'source_hash',
-        'extraction_method', 'flags', 'kind', 'review_status', 'revision', 'reviewed_at', 'embedding_code')}
+        'extraction_method', 'flags', 'kind', 'review_status', 'revision', 'reviewed_at', 'embedding_code', 'auto_eligible')}
 
 
 def corpus_query(version_id):
@@ -168,6 +169,7 @@ def review_chunk(chunk_id: UUID, body: ReviewInput, context: AuthContext = Depen
     if body.review_status == 'reviewed' and len(chunk.text.strip()) < 20:
         raise ApiError(422, 'CHUNK_EMPTY', 'Đoạn thiếu văn bản. Thêm bản phiên chép đối chiếu PDF trước khi duyệt.')
     chunk.kind, chunk.review_status = body.kind, body.review_status
+    chunk.auto_eligible = False
     chunk.revision += 1
     chunk.reviewed_by = context.user.id
     chunk.reviewed_at = utcnow()
@@ -179,7 +181,7 @@ def review_chunk(chunk_id: UUID, body: ReviewInput, context: AuthContext = Depen
 def index_corpus(version_id: UUID, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     version, _ = owned_version(db, version_id, context)
     encoder = get_encoder(get_settings())
-    chunks = db.scalars(corpus_query(version.id).where(DocumentChunk.review_status == 'reviewed', DocumentChunk.kind == 'content'))
+    chunks = db.scalars(corpus_query(version.id).where(eligible_clause()))
     pending = [(c.id, c.source_hash, c.text) for c in chunks if c.embedding_code != encoder.code or c.embedding is None]
     db.close()
     try:
@@ -190,7 +192,7 @@ def index_corpus(version_id: UUID, context: AuthContext = Depends(require_teache
     written = 0
     for (chunk_id, digest, _), vector in zip(pending, vectors):
         chunk = db.get(DocumentChunk, chunk_id, populate_existing=True)
-        if chunk and chunk.source_hash == digest and chunk.review_status == 'reviewed' and chunk.kind == 'content':
+        if chunk and chunk.source_hash == digest and eligible(chunk):
             chunk.embedding, chunk.embedding_code = vector, encoder.code
             written += 1
     db.commit()
@@ -228,8 +230,10 @@ def list_sessions(run_id: UUID, limit: Limit = 20, offset: Offset = 0,
 def current_sources(db, course_id):
     rows = db.execute(select(DocumentChunk, DocumentVersion, Document).join(DocumentVersion,
         DocumentVersion.id == DocumentChunk.document_version_id).join(Document, Document.id == DocumentVersion.document_id)
+        .outerjoin(RagPreparation, RagPreparation.document_version_id == DocumentVersion.id)
         .where(Document.course_id == course_id, Document.status == 'published', DocumentVersion.status == 'ready',
-               DocumentChunk.review_status == 'reviewed', DocumentChunk.kind == 'content'))
+               eligible_clause(), or_(RagPreparation.document_version_id.is_(None),
+                   (RagPreparation.enabled.is_(True) & RagPreparation.status.in_(['ready', 'needs_review'])))))
     return [dict(id=str(c.id), text=c.text, pdf_page=c.pdf_page, chunk_index=c.chunk_index,
                  document_version_id=str(v.id), document_code=d.code, title=d.title, version=v.version,
                  source_hash=c.source_hash, flags=c.flags, extraction_method=c.extraction_method,

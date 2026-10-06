@@ -11,13 +11,15 @@ export default function PdfViewer({
   versionId,
   title,
   initialPage = 1,
+  teacherPreview = false,
   onEvent,
   onClose,
 }: {
-  runId: string
+  runId?: string
   versionId: string
   title: string
   initialPage?: number
+  teacherPreview?: boolean
   onEvent?: (event: LearningEventInput) => void
   onClose: () => void
 }) {
@@ -37,7 +39,8 @@ export default function PdfViewer({
 
   useEffect(() => {
     const task = getDocument({
-      url: `/api/v1/course-runs/${runId}/document-versions/${versionId}/content`,
+      url: teacherPreview ? `/api/v1/document-versions/${versionId}/content`
+        : `/api/v1/course-runs/${runId}/document-versions/${versionId}/content`,
       withCredentials: true,
     })
     let stopped = false
@@ -53,7 +56,7 @@ export default function PdfViewer({
       stopped = true
       void task.destroy()
     }
-  }, [runId, versionId])
+  }, [runId, versionId, teacherPreview])
 
   useEffect(() => {
     if (!container.current) return

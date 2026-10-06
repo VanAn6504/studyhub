@@ -8,7 +8,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pypdf import PdfWriter
@@ -433,3 +433,205 @@ def test_missing_gemini_key(client, seeded, corpus, monkeypatch):
     monkeypatch.setattr(get_settings(), 'gemini_api_key', SecretStr(''))
     result = send(client, headers, sid)
     assert result.status_code == 503 and result.json()['error']['code'] == 'CHAT_UNAVAILABLE'
+
+
+def fresh_workflow_pdf(client, corpus):
+    headers, run, _, _, _ = corpus
+    response = client.post(f"{P}/courses/{run['course_id']}/documents", headers=headers,
+        data={'code': 'AUTO', 'title': 'Automatic preparation fixture'},
+        files={'file': ('auto.pdf', text_pdf(), 'application/pdf')})
+    assert response.status_code == 201, response.text
+    return response.json()['versions'][0]['id']
+
+
+def workflow_state(client, version):
+    return client.get(f'{P}/document-versions/{version}/rag').json()
+
+
+def test_workflow_one_action_publishes_extracts_and_indexes_without_fake_reviews(client, corpus, database):
+    headers = corpus[0]
+    version = fresh_workflow_pdf(client, corpus)
+    assert workflow_state(client, version)['status'] == 'unprepared'
+    not_enabled = client.patch(f'{P}/document-versions/{version}/rag/pages/1', headers=headers,
+        json={'revision': 'a'*64, 'action': 'allow'})
+    assert not_enabled.status_code == 409 and not_enabled.json()['error']['code'] == 'RAG_NOT_ENABLED'
+    enabled = client.post(f'{P}/document-versions/{version}/rag/enable', headers=headers)
+    assert enabled.status_code == 202 and enabled.json()['status'] == 'processing'
+    state = workflow_state(client, version)
+    assert state['status'] == 'needs_review' and state['document_status'] == 'published'
+    assert state['counts'] == {'automatic': 3, 'checked': 0, 'needs_review': 3, 'excluded': 0}
+    chunks = client.get(f'{P}/document-versions/{version}/chunks?limit=100').json()['items']
+    assert [c['pdf_page'] for c in chunks if c['auto_eligible']] == [3, 4, 5]
+    assert all(c['review_status'] == 'pending' and c['reviewed_at'] is None for c in chunks)
+    assert all(c['embedding_code'] == 'test-encoder' for c in chunks if c['auto_eligible'])
+    with database.connect() as db:
+        original = db.execute(text('SELECT generation_id,authorized_at FROM rag_preparations WHERE document_version_id=:id'), {'id': version}).first()
+        assert db.scalar(text('SELECT count(*) FROM document_chunks WHERE document_version_id=:id AND reviewed_by IS NOT NULL'), {'id': version}) == 0
+    repeated = client.post(f'{P}/document-versions/{version}/rag/enable', headers=headers)
+    assert repeated.status_code == 202 and repeated.json()['status'] == 'needs_review'
+    assert client.get(f'{P}/document-versions/{version}/chunks?limit=100').json()['items'] == chunks
+    with database.connect() as db:
+        assert db.execute(text('SELECT generation_id,authorized_at FROM rag_preparations WHERE document_version_id=:id'), {'id': version}).first() == original
+
+
+def test_workflow_page_review_and_transcription_auto_reindex(client, corpus):
+    headers = corpus[0]
+    version = fresh_workflow_pdf(client, corpus)
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=headers)
+    pages = client.get(f'{P}/document-versions/{version}/rag/pages?needs_review_only=true&limit=1').json()
+    assert pages['total'] == 3 and len(pages['items']) == 1
+    empty = client.get(f'{P}/document-versions/{version}/rag/pages?limit=100').json()['items'][-1]
+    url = f'{P}/document-versions/{version}/rag/pages/6'
+    body = {'revision': empty['revision'], 'action': 'allow'}
+    assert client.patch(url, headers=headers, json=body).status_code == 422
+    body['transcription'] = 'Reviewed manual code transcription from this page image.'
+    result = client.patch(url, headers=headers, json=body)
+    assert result.status_code == 200, result.text
+    assert client.patch(url, headers=headers, json=body).status_code == 409
+    chunks = client.get(f'{P}/document-versions/{version}/chunks?pdf_page=6').json()['items']
+    assert chunks[0]['review_status'] == 'rejected' and chunks[0]['text'] == ''
+    assert chunks[1]['extraction_method'] == 'manual' and chunks[1]['review_status'] == 'reviewed'
+    assert chunks[1]['embedding_code'] == 'test-encoder' and not chunks[1]['auto_eligible']
+    state = workflow_state(client, version)
+    assert state['counts']['checked'] == 1 and state['counts']['needs_review'] == 2
+    assert client.patch(f'{P}/document-versions/{version}/rag/pages/7', headers=headers, json=body).status_code == 422
+    assert client.patch(url, headers=headers, json={**body, 'pdf_page': 99}).status_code == 422
+
+
+def test_workflow_image_text_usable_but_image_only_held(client, corpus, database):
+    headers = corpus[0]
+    version = fresh_workflow_pdf(client, corpus)
+    client.post(f'{P}/document-versions/{version}/corpus', headers=headers)
+    with database.begin() as db:
+        db.execute(text("UPDATE document_chunks SET flags='[\"contains_images\"]'::jsonb WHERE document_version_id=:id AND pdf_page IN (4,6)"), {'id': version})
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=headers)
+    assert workflow_state(client, version)['counts']['automatic'] == 3
+    all_pages = client.get(f'{P}/document-versions/{version}/rag/pages?limit=100').json()['items']
+    readable = next(p for p in all_pages if p['pdf_page'] == 4)
+    assert readable['state'] == 'automatic' and readable['text_only']
+    page = next(p for p in all_pages if p['pdf_page'] == 6)
+    assert page['state'] == 'needs_review' and page['usable_segments'] == 0
+    response = client.patch(f'{P}/document-versions/{version}/rag/pages/6', headers=headers,
+        json={'revision': page['revision'], 'action': 'allow', 'transcription': 'Reviewed text transcribed from the source image.'})
+    assert response.status_code == 200
+    assert workflow_state(client, version)['counts']['checked'] == 1
+    assert client.get(f'{P}/document-versions/{version}/chunks?pdf_page=6').json()['items'][-1]['embedding_code'] == 'test-encoder'
+
+
+def test_workflow_disable_hides_history_and_keeps_pdf_and_human_reviews(client, seeded, corpus, provider):
+    teacher_headers, run, _, doc, chunks = corpus
+    version = doc['versions'][0]['id']
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=teacher_headers)
+    student_headers, sid = student_session(client, seeded, run)
+    assert send(client, student_headers, sid).json()['status'] == 'answered'
+    teacher_headers = login(client, seeded, 'teacher')
+    assert client.post(f'{P}/document-versions/{version}/rag/disable', headers=teacher_headers).json()['status'] == 'disabled'
+    assert client.get(f'{P}/document-versions/{version}/chunks?pdf_page=3').json()['items'][0]['review_status'] == 'reviewed'
+    student_headers = login(client, seeded, 'student')
+    history = client.get(f'{P}/chat-sessions/{sid}/messages').json()['items'][0]
+    assert history['status'] == 'source_unavailable' and not history['citations']
+    assert send(client, student_headers, sid).json()['status'] == 'insufficient_sources'
+    assert client.get(f"{P}/course-runs/{run['id']}/document-versions/{version}/content").status_code == 200
+
+
+def test_workflow_failed_preparation_can_retry_without_duplicate_chunks(client, corpus, monkeypatch):
+    from app import rag
+    from app.local_embeddings import unavailable
+    version = fresh_workflow_pdf(client, corpus)
+    original = rag.get_encoder
+    def missing(_):
+        raise unavailable()
+    monkeypatch.setattr(rag, 'get_encoder', missing)
+    assert client.post(f'{P}/document-versions/{version}/rag/enable', headers=corpus[0]).status_code == 202
+    assert workflow_state(client, version)['error_code'] == 'EMBEDDING_UNAVAILABLE'
+    monkeypatch.setattr(rag, 'get_encoder', original)
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=corpus[0])
+    assert workflow_state(client, version)['status'] == 'needs_review'
+    assert client.get(f'{P}/document-versions/{version}/chunks').json()['total'] == 6
+
+
+def test_workflow_rejected_and_teacher_held_pages_not_auto_restored(client, corpus):
+    headers = corpus[0]
+    version = fresh_workflow_pdf(client, corpus)
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=headers)
+    page = next(p for p in client.get(f'{P}/document-versions/{version}/rag/pages?limit=100').json()['items'] if p['pdf_page'] == 3)
+    client.patch(f'{P}/document-versions/{version}/rag/pages/3', headers=headers, json={'revision': page['revision'], 'action': 'exclude'})
+    chunk = client.get(f'{P}/document-versions/{version}/chunks?pdf_page=4').json()['items'][0]
+    client.patch(f"{P}/chunks/{chunk['id']}", headers=headers, json={'revision': chunk['revision'], 'kind': 'content', 'review_status': 'pending'})
+    client.post(f'{P}/document-versions/{version}/rag/disable', headers=headers)
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=headers)
+    assert client.get(f'{P}/document-versions/{version}/chunks?pdf_page=3').json()['items'][0]['review_status'] == 'rejected'
+    assert not client.get(f'{P}/document-versions/{version}/chunks?pdf_page=4').json()['items'][0]['auto_eligible']
+
+
+def test_workflow_resource_acl_and_csrf(client, seeded, corpus):
+    headers = corpus[0]
+    version = fresh_workflow_pdf(client, corpus)
+    assert client.post(f'{P}/document-versions/{version}/rag/enable').status_code == 403
+    student = login(client, seeded, 'student')
+    for suffix in ('', '/pages'):
+        assert client.get(f'{P}/document-versions/{version}/rag{suffix}').status_code == 403
+    for action in ('enable', 'disable'):
+        assert client.post(f'{P}/document-versions/{version}/rag/{action}', headers=student).status_code == 403
+    client.cookies.clear()
+    from conftest import ORIGIN
+    client.post(f'{P}/auth/register', headers={'Origin': ORIGIN}, json={'email': 'rag-other@example.com', 'password': 'test-password-12345678', 'display_name': 'Other'})
+    other = client.post(f'{P}/auth/login', headers={'Origin': ORIGIN}, json={'email': 'rag-other@example.com', 'password': 'test-password-12345678'}).json()
+    from app.db import get_engine
+    with get_engine().begin() as db:
+        db.execute(text("UPDATE users SET role='teacher' WHERE email='rag-other@example.com'"))
+    client.cookies.clear()
+    other = client.post(f'{P}/auth/login', headers={'Origin': ORIGIN}, json={'email': 'rag-other@example.com', 'password': 'test-password-12345678'}).json()
+    oh = {'Origin': ORIGIN, 'X-CSRF-Token': other['csrf_token']}
+    assert client.get(f'{P}/document-versions/{version}/rag').status_code == 404
+    assert client.get(f'{P}/document-versions/{version}/rag/pages').status_code == 404
+    assert client.post(f'{P}/document-versions/{version}/rag/enable', headers=oh).status_code == 404
+    assert client.post(f'{P}/document-versions/{version}/rag/disable', headers=oh).status_code == 404
+    assert client.patch(f'{P}/document-versions/{version}/rag/pages/1', headers=oh, json={'revision': 'a'*64, 'action': 'exclude'}).status_code == 404
+
+
+def test_workflow_expired_job_retry_and_disabled_generation_cannot_resurrect(client, corpus, monkeypatch, database):
+    from app import rag_workflow
+    version = fresh_workflow_pdf(client, corpus)
+    work = rag_workflow.prepare
+    monkeypatch.setattr(rag_workflow, 'prepare', lambda *_: None)
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=corpus[0])
+    with database.begin() as db:
+        old = db.execute(text('SELECT generation_id,authorized_by FROM rag_preparations WHERE document_version_id=:id'), {'id': version}).first()
+        db.execute(text("UPDATE rag_preparations SET started_at=now()-interval '11 minutes' WHERE document_version_id=:id"), {'id': version})
+    assert workflow_state(client, version)['error_code'] == 'RAG_PROCESS_INTERRUPTED'
+    monkeypatch.setattr(rag_workflow, 'prepare', work)
+    client.post(f'{P}/document-versions/{version}/rag/enable', headers=corpus[0])
+    assert workflow_state(client, version)['status'] == 'needs_review'
+    client.post(f'{P}/document-versions/{version}/rag/disable', headers=corpus[0])
+    work(UUID(version), old[0], old[1])
+    assert workflow_state(client, version)['status'] == 'disabled'
+
+
+def test_workflow_disable_during_embedding_does_not_wait_or_resurrect(client, corpus, monkeypatch):
+    from app import rag
+    entered, release = threading.Event(), threading.Event()
+    class PausedEncoder:
+        code = 'test-encoder'
+        def encode(self, texts, query=False):
+            entered.set()
+            assert release.wait(10)
+            return [[1.] + [0.] * 383 for _ in texts]
+    version = fresh_workflow_pdf(client, corpus)
+    monkeypatch.setattr(rag, 'get_encoder', lambda _: PausedEncoder())
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(client.post, f'{P}/document-versions/{version}/rag/enable', headers=corpus[0])
+        try:
+            assert entered.wait(10)
+            assert workflow_state(client, version)['status'] == 'processing'
+            again = client.post(f'{P}/document-versions/{version}/rag/enable', headers=corpus[0])
+            assert again.status_code == 202 and again.json()['status'] == 'processing'
+            page = client.get(f'{P}/document-versions/{version}/rag/pages?limit=100').json()['items'][0]
+            blocked = client.patch(f'{P}/document-versions/{version}/rag/pages/1', headers=corpus[0], json={'revision': page['revision'], 'action': 'exclude'})
+            assert blocked.status_code == 409 and blocked.json()['error']['code'] == 'RAG_PROCESSING'
+            disabled = client.post(f'{P}/document-versions/{version}/rag/disable', headers=corpus[0])
+            assert disabled.status_code == 200 and disabled.json()['status'] == 'disabled'
+        finally:
+            release.set()
+        assert future.result(timeout=10).status_code == 202
+    assert workflow_state(client, version)['status'] == 'disabled'

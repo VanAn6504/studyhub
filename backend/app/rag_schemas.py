@@ -24,6 +24,18 @@ class ReviewInput(Input):
         return self
 
 
+class PageReviewInput(Input):
+    revision: Annotated[str, StringConstraints(pattern=r'^[0-9a-f]{64}$')]
+    action: Literal['allow', 'exclude']
+    transcription: ChunkText | None = None
+
+    @model_validator(mode='after')
+    def transcription_only_when_allowed(self):
+        if self.transcription is not None and self.action != 'allow':
+            raise ValueError('Chỉ thêm phiên chép khi cho phép trang')
+        return self
+
+
 class MessageInput(Input):
     request_key: UUID
     message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]

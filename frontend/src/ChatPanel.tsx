@@ -62,7 +62,7 @@ export default function ChatPanel({ run, csrfToken, onExpired, onRead }: {
   }
   return <section className="chat-panel" aria-labelledby="chat-title">
     <span className="eyebrow">HỎI TỪ TÀI LIỆU</span><h3 id="chat-title">Trợ giảng AI</h3>
-    <p className="muted">Chatbot chỉ dùng đoạn PDF được giảng viên duyệt. Mỗi câu hỏi được xử lý độc lập; nêu rõ thuật ngữ để tìm đúng nguồn. Mở trang trích dẫn để kiểm tra câu trả lời.</p>
+    <p className="muted">Chatbot dùng tài liệu được giảng viên cho phép, gồm nguồn xử lý tự động và trang đã kiểm tra. Trang có cảnh báo chưa được cho phép sẽ bị loại. Mỗi câu hỏi được xử lý độc lập; nêu rõ thuật ngữ và mở trang trích dẫn để kiểm tra câu trả lời.</p>
     <p className="muted">Gemini nhận câu hỏi và tối đa 4 đoạn nguồn để trả lời; embedding được tạo trên máy. Đừng nhập mật khẩu hoặc thông tin cá nhân vào câu hỏi.</p>
     {!canWrite && <p className="notice">Lượt học {run.data_origin === 'synthetic' ? 'mô phỏng' : 'đã đóng/chưa mở'}: chỉ xem lịch sử, không gửi câu hỏi mới.</p>}
     <div className="rag-actions">

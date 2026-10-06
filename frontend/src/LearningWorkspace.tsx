@@ -13,7 +13,7 @@ const PdfViewer = lazy(() => import('./PdfViewer'))
 import QuizPlayer from './QuizPlayer'
 import TeacherQuizEditor from './TeacherQuizEditor'
 import GuidancePanel, { stateLabels } from './GuidancePanel'
-import CorpusEditor from './CorpusEditor'
+import RagDocumentPanel from './RagDocumentPanel'
 import ChatPanel from './ChatPanel'
 import './learning.css'
 
@@ -342,7 +342,8 @@ export default function LearningWorkspace({
               </p>
             </div>
             {document.versions.map((version) => (
-              <div className="document-version" key={version.id}>
+              <div className="document-version-group" key={version.id}>
+              <div className="document-version">
                 <span>
                   Bản {version.version} · {version.page_count} trang
                 </span>
@@ -359,6 +360,9 @@ export default function LearningWorkspace({
                 >
                   Xem PDF
                 </button>
+              </div>
+              {teacher && <RagDocumentPanel versionId={version.id} documentStatus={document.status} csrfToken={csrfToken}
+                onExpired={onExpired} onPublished={() => { setReload(v => v + 1); onChanged() }} />}
               </div>
             ))}
             {teacher && (
@@ -380,7 +384,7 @@ export default function LearningWorkspace({
                     )
                   }
                 >
-                  {document.status === 'published' ? 'Lưu trữ' : 'Công bố PDF'}
+                  {document.status === 'published' ? 'Lưu trữ PDF' : 'Chỉ công bố PDF'}
                 </button>
                 <label>
                   Thêm bản PDF
@@ -409,8 +413,6 @@ export default function LearningWorkspace({
       {!run && teacher && (
         <p className="muted">Chọn một lượt học để xem thử PDF trong trình xem.</p>
       )}
-      {teacher && <CorpusEditor key={courseId} documents={documents} csrfToken={csrfToken} onExpired={onExpired}
-        onRead={run ? (versionId, title, page) => setViewer({ versionId, title, page }) : undefined} />}
       {!teacher && run && <ChatPanel key={run.id} run={run} csrfToken={csrfToken} onExpired={onExpired}
         onRead={citation => setViewer({ versionId: citation.document_version_id,
           title: `${citation.document_code} · ${citation.title} · bản ${citation.version}`, page: citation.pdf_page })} />}

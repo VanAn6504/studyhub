@@ -10,6 +10,16 @@ export type Chunk = {
   review_status: 'pending' | 'reviewed' | 'rejected'
   revision: number
   embedding_code: string | null
+  auto_eligible: boolean
+}
+export type RagStatus = {
+  enabled: boolean; legacy: boolean; status: 'unprepared' | 'processing' | 'ready' | 'needs_review' | 'failed' | 'disabled'
+  error_code: string | null; document_status: string; usable_pages: number; total_pages: number
+  counts: Record<'automatic' | 'checked' | 'needs_review' | 'excluded', number>
+}
+export type RagPage = {
+  pdf_page: number; revision: string; state: 'automatic' | 'checked' | 'needs_review' | 'excluded'
+  issues: string[]; usable_segments: number; text: string; has_transcription: boolean; text_only: boolean
 }
 export type Citation = {
   chunk_id: string

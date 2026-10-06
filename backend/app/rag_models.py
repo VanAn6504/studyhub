@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +26,7 @@ class DocumentChunk(Base):
     source_hash: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list | None] = mapped_column(JSONB)
     embedding_code: Mapped[str | None] = mapped_column(Text)
+    auto_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='false')
     extraction_method: Mapped[str] = mapped_column(Text, nullable=False)
     flags: Mapped[list] = mapped_column(JSONB, nullable=False)
     kind: Mapped[str] = mapped_column(Text, nullable=False, default='content')
@@ -34,6 +35,19 @@ class DocumentChunk(Base):
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('users.id'))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RagPreparation(Base):
+    __tablename__ = 'rag_preparations'
+    __table_args__ = (CheckConstraint("status IN ('unprepared','processing','ready','needs_review','failed')"),)
+    document_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('document_versions.id'), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default='unprepared')
+    authorized_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('users.id'))
+    authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    generation_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(Text)
 
 
 class ChatSession(Base):
