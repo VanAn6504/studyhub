@@ -13,6 +13,8 @@ const PdfViewer = lazy(() => import('./PdfViewer'))
 import QuizPlayer from './QuizPlayer'
 import TeacherQuizEditor from './TeacherQuizEditor'
 import GuidancePanel, { stateLabels } from './GuidancePanel'
+import CorpusEditor from './CorpusEditor'
+import ChatPanel from './ChatPanel'
 import './learning.css'
 
 export default function LearningWorkspace({
@@ -407,6 +409,11 @@ export default function LearningWorkspace({
       {!run && teacher && (
         <p className="muted">Chọn một lượt học để xem thử PDF trong trình xem.</p>
       )}
+      {teacher && <CorpusEditor key={courseId} documents={documents} csrfToken={csrfToken} onExpired={onExpired}
+        onRead={run ? (versionId, title, page) => setViewer({ versionId, title, page }) : undefined} />}
+      {!teacher && run && <ChatPanel key={run.id} run={run} csrfToken={csrfToken} onExpired={onExpired}
+        onRead={citation => setViewer({ versionId: citation.document_version_id,
+          title: `${citation.document_code} · ${citation.title} · bản ${citation.version}`, page: citation.pdf_page })} />}
       {viewer && run && (
         <Suspense fallback={<p role="status">Đang mở trình xem PDF…</p>}>
           <PdfViewer

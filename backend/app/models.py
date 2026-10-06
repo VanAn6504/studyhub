@@ -108,3 +108,4 @@ class TopicPrerequisite(Base):
 # Register the next module's tables with the same metadata for Alembic.
 from app import learning_models  # noqa: E402,F401
 from app import guidance_models  # noqa: E402,F401
+from app import rag_models  # noqa: E402,F401

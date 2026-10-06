@@ -146,6 +146,54 @@ docker compose exec -T backend python -m app.seed_prediction_demo --course-code 
 
 CLI tạo run synthetic closed bắt đầu 60 ngày trước, 3 page_view mô phỏng ngày 0/2/42, không tạo điểm quiz và không sửa ngày/log/attempt của run thật. Chạy lại không nhân đôi sự kiện. Sinh viên chọn `ML_DEMO_42`, bấm **Tính dự báo**; badge mô phỏng luôn hiển thị, client không ghi quiz/log vào run đó. PDF/quiz của học phần vẫn dùng các version đã công bố. Dữ liệu thật mới bắt đầu cần chờ cutoff để dự báo; lộ trình theo quiz hoạt động ngay.
 
+## Chatbot RAG từ PDF
+
+Giảng viên vào **Rà soát nguồn cho chatbot**, chọn đúng phiên bản rồi **Trích văn bản PDF**. Corpus chia đoạn trong từng trang PDF, giữ ID/version/trang 1-based và hash. Trích lại cùng version không ghi đè hay nhân đôi. PDF/version cũ và dữ liệu học tập được giữ nguyên khi migration `0004_rag` thêm bảng.
+
+Mọi đoạn mới đều **chờ duyệt**. Đối chiếu với trình xem PDF, loại bìa/mục lục/đoạn sai rồi duyệt từng đoạn nội dung. Trang có ảnh được cảnh báo; mã nguồn trong ảnh chưa phiên chép không dùng để trả lời câu hỏi mã nguồn. Có thể thêm bản phiên chép thủ công theo đúng trang, duyệt riêng và loại đoạn sai trước đó; không sửa văn bản của đoạn cũ. Thu hồi đoạn hoặc lưu trữ PDF sẽ ẩn câu trả lời và trích dẫn liên quan trong lịch sử. Không tự lấy ngân hàng câu hỏi/đáp án quiz vào corpus.
+
+Retrieval v1 dùng **embedding đa ngôn ngữ local + BM25**, bỏ dấu và mở rộng một số cụm tiếng Việt sang thuật ngữ nguồn tiếng Anh. Chỉ tìm đoạn `reviewed/content` trong PDF `published/ready` của học phần đang enroll; tối đa 4 đoạn. Các thuật ngữ như LayoutBuilder phải xuất hiện trong nguồn. Độ đúng của câu trả lời cần đánh giá với mô hình thực tế; kiểm tra ID và quote không tự chứng minh mọi diễn giải của mô hình đều đúng.
+
+### Gemini API và embedding local
+
+Phần sinh câu trả lời dùng **Google Gemini API** theo đề cương. Mặc định chọn `gemini-3.5-flash-lite`; có thể đặt `GEMINI_MODEL` bằng model hỗ trợ structured output còn khả dụng trong project Google AI Studio. Xem [Gemini structured output](https://ai.google.dev/gemini-api/docs/structured-output) và [bảng giá/free tier](https://ai.google.dev/gemini-api/docs/pricing). Dòng 2.5 bị hạn chế với project mới theo [danh sách model của Google](https://ai.google.dev/gemini-api/docs/models); mặc định 3.5 đã kiểm tra khả dụng. Quota/điều kiện free tier phụ thuộc tài khoản và có thể thay đổi; backend không tự chuyển model hoặc bật gói trả phí. Gemini chỉ nhận câu hỏi + tối đa 4 đoạn đã duyệt; không gửi cả PDF, tài khoản/điểm sinh viên, vector hay ngân hàng quiz. Theo bảng giá Google, dữ liệu free tier có thể được dùng để cải thiện sản phẩm; chỉ dùng tài liệu phù hợp với chế độ này.
+
+**Embedding chạy CPU trên máy**, dùng checkpoint có sẵn [intfloat/multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small), giấy phép MIT, ONNX quantized INT8 (~118 MB + tokenizer ~17 MB). Revision cố định `614241f622f53c4eeff9890bdc4f31cfecc418b3`; không train. Tokenizer giới hạn 512 token, tiền tố `query: `/`passage: `, mean pooling theo attention mask và chuẩn hóa L2 thành 384 chiều. Script tải file từ tác giả, đối chiếu digest nguồn, lưu manifest/hash; backend kiểm tra hash trước khi nạp. Không gọi API embedding, không tự tải model trong request và không cần PyTorch/GPU.
+
+```powershell
+backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
+backend/.venv/Scripts/python.exe scripts/prepare_embeddings.py
+```
+
+Weights/manifest nằm tại `.local/embedding/`, bị Git ignore, Docker mount read-only vào `/embedding`. Clone máy mới cần chạy script; artifact không nằm trong image/Git. Local dùng mặc định đường dẫn trên hoặc `EMBEDDING_MODEL_PATH`; đường dẫn tương đối tính từ repository root.
+
+Điền **chỉ trong .env local** (key không đưa vào source/frontend/Git hoặc URL/log):
+
+```dotenv
+CHAT_PROVIDER=gemini
+GEMINI_API_KEY=<key riêng của bạn>
+GEMINI_MODEL=gemini-3.5-flash-lite
+CHAT_TIMEOUT_SECONDS=45
+```
+
+```powershell
+docker compose up -d --build
+```
+
+Chưa có key, provider lỗi hoặc trả JSON/citation không hợp lệ => 503 `CHAT_UNAVAILABLE`; quota 429 từ Google => 503 `CHAT_QUOTA_EXCEEDED`. Model không khả dụng (Google 404) => 503 `CHAT_MODEL_UNAVAILABLE`, cần kiểm tra `GEMINI_MODEL`. Không tự retry API để tránh tiêu thêm quota. Có thể đặt `CHAT_PROVIDER=disabled` để tắt sinh câu trả lời; PDF/quiz/lộ trình vẫn hoạt động. REST gọi `generateContent` tại domain Google cố định, gửi key bằng header, JSON output, không tools/search grounding và không streaming. Khi Gemini gộp xuống dòng của PDF, server chỉ cho phép khác biệt khoảng trắng rồi lấy lại đoạn nguyên văn liên tục từ nguồn để hiển thị; chữ, dấu câu và thứ tự phải khớp, excerpt tối đa 600 ký tự.
+
+Sau khi duyệt đoạn, bấm **Lập chỉ mục embedding** cho từng PDF có đoạn đã duyệt. Vector và mã model lưu trong PostgreSQL, gắn chunk/version/trang/hash; lập lại không nhân đôi vector. Thiếu model/vector hoặc model đã đổi => 503 `EMBEDDING_UNAVAILABLE`, cần lập lại chỉ mục. Retrieval kết hợp cosine embedding đa ngôn ngữ với BM25 bằng reciprocal rank fusion (RRF), giữ kiểm tra thuật ngữ và ngưỡng cosine 0.72 thử nghiệm; đây không phải xác suất đúng đã hiệu chỉnh.
+
+### Sử dụng và hợp đồng
+
+- Teacher: POST `/api/v1/document-versions/{id}/corpus`; POST `/api/v1/document-versions/{id}/embedding-index` lập vector các đoạn đã duyệt; GET `/chunks?pdf_page=...&limit=...&offset=...` dưới cùng version; POST `/chunks` để thêm phiên chép `{pdf_page,text}`. PATCH `/api/v1/chunks/{id}` nhận `{revision,kind,review_status}`, trả 409 khi tab dùng revision cũ. GET `/api/v1/document-versions/{id}/content` là preview riêng của owner teacher.
+- Student: POST/GET `/api/v1/course-runs/{id}/chat-sessions`; POST `/api/v1/chat-sessions/{id}/messages` nhận `{message,request_key}` với UUID và tối đa 2000 ký tự. Không nhận role/system_prompt/model/citations từ client. GET cùng `/messages` trả các **lượt hỏi đáp** (`question,answer,status,citations`), có phân trang. Mỗi câu hỏi độc lập, chưa dùng lịch sử làm ngữ cảnh cho câu kế tiếp.
+- Gửi lại cùng request_key và câu hỏi trả cùng lượt hỏi đáp; key dùng cho câu khác trả 409. Provider lỗi lưu `provider_error`, retry cùng key cập nhật lượt đó. Một enrollment chỉ có một câu hỏi đang xử lý; pending quá thời gian lease cho phép thử lại, generation ID chặn kết quả cũ ghi đè. Tối đa 8 lượt hỏi mới/phút.
+- Run real/active mới được tạo phiên/gửi câu hỏi; closed/synthetic chỉ đọc lịch sử. API kiểm tra lại enrollment/run và nguồn sau khi provider trả lời; không giữ transaction/khóa DB trong lúc gọi mô hình.
+- Không đủ nguồn trả `insufficient_sources`, citations rỗng. Provider mất kết nối, JSON sai schema hoặc dẫn ID/quote không thuộc nguồn trả 503. Quote phải là đoạn nguyên văn liên tục trong chunk; trang/version/title được lấy từ server. Nội dung PDF là dữ liệu không đáng tin trong prompt, không có quyền đổi phân quyền hoặc gọi tools. Câu trả lời hiển thị dạng văn bản, không chạy HTML/model instructions.
+
+Kiểm thử `scripts/test_backend.py` bao gồm PostgreSQL, PDF và HTTP server local giả lập hợp đồng Gemini và encoder fixture nhỏ. Fixture này **không phải nghiệm thu chất lượng LLM thật**. Trước demo, điền Gemini key, duyệt corpus và lập chỉ mục embedding; lưu câu hỏi/kết quả/citations riêng tại `.local/` hoặc `docs/`, đối chiếu RAG01–RAG07. Bộ mẫu cần CH02 trang 36 (`lib`), CH03 trang 22 (Row/Column), CH03 trang 68 (LayoutBuilder); SQLite/MethodChannel/Isolate thiếu ví dụ phải từ chối. Sao lưu PostgreSQL và volume PDF cùng nhau; Git không chứa corpus/chat/runtime.
+
 ## Tài liệu để bắt đầu code
 
 1. [Học phần mẫu và kiểm tra nguồn](docs/hoc_phan_mau.md).
@@ -160,6 +208,6 @@ Nội dung để seed nằm tại `content/mobile_multiplatform/course_manifest.
 
 ## Hướng triển khai
 
-FastAPI + SQLAlchemy + Alembic; React + TypeScript + Vite + PDF.js; PostgreSQL; Docker Compose và volume private dành cho PDF. Module tiếp theo là RAG theo trang PDF, citation và xử lý thiếu nguồn/provider.
+FastAPI + SQLAlchemy + Alembic; React + TypeScript + Vite + PDF.js; PostgreSQL; Docker Compose và volume private dành cho PDF. Đã có RAG theo trang PDF, duyệt corpus, citation và xử lý thiếu nguồn/provider; cần cấu hình Gemini key và nghiệm thu câu trả lời trước demo.
 
 OULAD dùng cho thí nghiệm mô hình; điểm quiz theo chủ đề dùng cho lộ trình. Kết quả OULAD không được coi là độ chính xác đã xác nhận trên sinh viên StudyHub. Lượt học mô phỏng phải có provenance riêng.

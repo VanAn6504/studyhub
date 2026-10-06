@@ -320,3 +320,16 @@
 .risk-score { font-size: 1.8rem; font-weight: 700; }
 .risk-score span { display: block; font-size: .9rem; font-weight: 500; }
 @media (max-width: 600px) { .guidance-panel { padding: 14px; } }
+.corpus-editor, .chat-panel { margin: 1.4rem 0; padding: 1.25rem; border: 1px solid var(--border, #dce3ef); border-radius: 16px; background: var(--surface, #fff); }
+.corpus-editor fieldset, .chat-panel fieldset { border: 0; padding: 0; min-width: 0; }
+.corpus-editor label, .chat-panel label { display: grid; gap: .4rem; margin: .8rem 0; }
+.corpus-editor select, .chat-panel select, .corpus-editor textarea, .chat-panel textarea { width: 100%; max-width: 100%; }
+.rag-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; margin: .7rem 0; }
+.rag-actions label { flex: 1 1 220px; min-width: 0; }
+.corpus-chunk, .chat-turn { border-top: 1px solid #dce3ef; padding: 1rem 0; overflow-wrap: anywhere; }
+.corpus-chunk pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-height: 24rem; overflow: auto; background: #f5f7fb; padding: 1rem; }
+.chat-answer, .chat-citations blockquote { white-space: pre-wrap; }
+.chat-citations blockquote { margin: .5rem 0 1rem; padding: .5rem 1rem; border-left: 3px solid #3466d9; color: #42526b; }
+.chat-history { max-height: 38rem; overflow: auto; }
+.rag-badge { display: inline-block; padding: .3rem .6rem; border-radius: 8px; background: #fff2d8; }
+.corpus-editor textarea, .chat-panel textarea { font: inherit; padding: .75rem; border: 1px solid var(--line); border-radius: 8px; background: white; resize: vertical; }

@@ -9,10 +9,12 @@ x-backend: &backend
     COURSE_MANIFEST_PATH: /content/mobile_multiplatform/course_manifest.json
     PDF_STORAGE_PATH: /data/pdfs
     MODEL_ARTIFACT_PATH: /models/current
+    EMBEDDING_MODEL_PATH: /embedding
   volumes:
     - ./content:/content:ro
     - pdf_storage:/data/pdfs
     - ./ml/artifacts:/models:ro
+    - ./.local/embedding:/embedding:ro
 
 services:
   storage-init:

@@ -4,14 +4,14 @@ from fastapi import FastAPI, Request
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import activity, auth, courses, paths, predictions, quizzes, resources
+from app import activity, auth, courses, paths, predictions, quizzes, rag, resources
 from app.config import get_settings
 from app.db import get_engine
 from app.errors import ApiError, error_response, register_error_handlers
 from app.security import UNSAFE_METHODS
 from app.upload_limit import RequestBodyLimit
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 def create_app() -> FastAPI:
@@ -48,6 +48,7 @@ def create_app() -> FastAPI:
     application.include_router(activity.router, prefix="/api/v1")
     application.include_router(paths.router, prefix="/api/v1")
     application.include_router(predictions.router, prefix="/api/v1")
+    application.include_router(rag.router, prefix="/api/v1")
     application.add_middleware(RequestBodyLimit)
     return application
 
