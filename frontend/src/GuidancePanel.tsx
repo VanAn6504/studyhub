@@ -104,7 +104,7 @@ export default function GuidancePanel({ run, csrfToken, refresh, activityRefresh
       {predictionLoading && <p role="status">Đang cập nhật dữ liệu hoạt động…</p>}
       {predictionError && <p className="notice notice-error" role="alert">{predictionError}</p>}
       {prediction?.status === 'not_ready' && <p>Chưa đủ thời gian: cần dữ liệu ngày 0–42. Có thể dự báo từ {new Date(prediction.cutoff_end_at).toLocaleString('vi-VN')}.</p>}
-      {prediction?.status === 'not_computed' && <p>Chưa tính dự báo cho lượt học này.</p>}
+      {prediction?.status === 'not_computed' && <p>Chưa tính dự báo cho lớp học này.</p>}
       {prediction?.status === 'model_unavailable' && <p>Mô hình chưa sẵn sàng. Bạn vẫn có thể đọc tài liệu và làm quiz.</p>}
       {prediction?.status === 'insufficient_data' && <p>Chưa đủ dữ liệu: không có lượt xem trang hợp lệ trong cửa sổ dự báo.</p>}
       {prediction?.status === 'ok' && <>

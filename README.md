@@ -6,7 +6,7 @@ Học phần mẫu: **Phát triển ứng dụng di động đa nền tảng**, 
 
 ## Trạng thái
 
-Đã có bản nền móng chạy được: FastAPI, React/TypeScript, PostgreSQL, migration, đăng ký/đăng nhập/logout, phân quyền teacher/student, học phần/lượt học, enrollment và 8 chủ đề mẫu. Giảng viên có thể tạo và mở lượt học, thêm sinh viên theo email; sinh viên xem các lượt học đã được đăng ký và mục tiêu/kiến thức tiên quyết.
+Đã có bản nền móng chạy được: FastAPI, React/TypeScript, PostgreSQL, migration, đăng ký/đăng nhập/logout, phân quyền teacher/student, học phần/lớp học, enrollment và 8 chủ đề mẫu. Giảng viên tạo học phần thuộc quyền quản lý, chuẩn bị nội dung dùng chung và mở các lớp học riêng; sinh viên xem học phần của lớp đã đăng ký.
 
 Đã bổ sung upload/xem PDF có phiên bản, gắn khoảng trang vào chủ đề, biên soạn và công bố quiz, lưu/khôi phục/nộp bài và chấm điểm ở server. Trình xem PDF.js ghi log mở tài liệu và trang đang hiển thị; log gắn enrollment, thời gian server và provenance để chuẩn bị dữ liệu cho AI. Giảng viên xem kết quả và số lượt xem trang theo sinh viên.
 
@@ -112,9 +112,28 @@ backend/.venv/Scripts/python.exe -m pytest ml/tests -q
 
 GitHub Actions có cấu hình test backend với PostgreSQL, build frontend và test hợp đồng ML. Trạng thái chạy CI thực tế xem trong repository GitHub.
 
+## Không gian học phần
+
+### Thao tác trong giao diện học phần
+
+- **Sinh viên:** Học phần của tôi → Vào học phần → Vào học một chủ đề. Trong chủ đề, chọn **Đọc tài liệu** hoặc **Làm quiz**; PDF và quiz có trang riêng. **Lộ trình & tiến độ** và **Kết quả** nằm trên thanh điều hướng. Nếu đăng ký nhiều lớp của cùng học phần, chọn lớp trước khi học.
+- **Trợ giảng:** bấm **Hỏi trợ giảng** trong học phần. Đóng/mở khung chat giữ phiên đang chọn; nguồn trích dẫn mở đúng phiên bản PDF và trang. Luồng này dùng API RAG hiện có.
+- **Giảng viên:** Học phần của tôi → **Tạo học phần** hoặc **Quản lý học phần**. Trong **Chủ đề**, thêm/chỉnh tên, mã, mục tiêu, thứ tự và tiên quyết; mỗi chủ đề tập hợp tài liệu và quiz của nó.
+- **Tài liệu:** **Thêm tài liệu** mở form upload riêng → lưu nháp → xem PDF/kiểm tra nguồn → công bố. Danh sách chính hiển thị tên, trạng thái và nút công bố/RAG; **Mở tài liệu** xem chi tiết, phiên bản và các trang cần kiểm tra. Có thể chọn chủ đề và khoảng trang khi upload để gắn sau công bố. Nếu tải lại trang trước khi công bố, lựa chọn gắn chưa lưu sẽ mất; dùng **Gắn tài liệu đã công bố** trong chủ đề để gắn lại.
+- **Lớp học:** tạo lớp nháp, thêm tài khoản sinh viên theo email, mở lớp, ngừng/kích hoạt lại đăng ký và xem kết quả lớp. Nội dung thuộc học phần; ngày bắt đầu, đăng ký và kết quả thuộc lớp. Nhãn “lớp học” sử dụng thực thể `CourseRun` hiện có, không thêm actor admin.
+
+URL lưu trang học phần/chủ đề/PDF trong phần `#` để hỗ trợ Back và tải lại trang. Lựa chọn quiz chưa lưu giữ khi chuyển giữa các phần của cùng chủ đề; đổi chủ đề/lớp hoặc đăng xuất yêu cầu xác nhận. Dùng **Lưu bài làm** để lưu lên server trước khi đóng trình duyệt. Log chưa gửi giữ nguyên ID và có nút gửi lại; đổi lớp/đăng xuất phải gửi xong log.
+
+API bổ sung cho không gian giảng viên:
+
+- PATCH `/api/v1/topics/{id}`: cập nhật `{code, title, order_index, objectives}`, giữ ID, tài liệu và quiz; chỉ tăng `content_revision` khi nội dung đổi. Tiên quyết vẫn cập nhật bằng endpoint PUT hiện có.
+- GET `/api/v1/course-runs/{id}/enrollments`: danh sách phân trang `{items, total, limit, offset}`; mỗi mục gồm ID đăng ký, ID/email/tên sinh viên và trạng thái. Chỉ giảng viên sở hữu lớp được đọc.
+
+Không cần migration mới cho bố cục này. Việc đổi giao diện không xác nhận độ chính xác dự báo trên sinh viên hoặc khả năng chịu tải RAG nhiều học phần; hai phần đó cần nghiệm thu riêng.
+
 ## Lộ trình cá nhân hóa
 
-Sinh viên chọn lượt học để xem **Bước học tiếp theo**. Bài hoàn thành mới nhất của quiz đang công bố xác định `weak`/`mastered`; chưa làm là `not_assessed`, chưa có quiz đủ câu là `not_available`. Quy tắc `path_rules_v1` ưu tiên chủ đề yếu, thêm tiên quyết chưa đạt trước, rồi chủ đề chưa đánh giá. Tiên quyết chưa có quiz tạo cảnh báo nhưng không khóa học.
+Sinh viên vào học phần → **Lộ trình & tiến độ** để xem **Bước học tiếp theo**. Bài hoàn thành mới nhất của quiz đang công bố xác định `weak`/`mastered`; chưa làm là `not_assessed`, chưa có quiz đủ câu là `not_available`. Quy tắc `path_rules_v1` ưu tiên chủ đề yếu, thêm tiên quyết chưa đạt trước, rồi chủ đề chưa đánh giá. Tiên quyết chưa có quiz tạo cảnh báo nhưng không khóa học.
 
 Mỗi snapshot lưu revision, phiên bản nội dung, ID bài làm đầu vào, trạng thái/điểm, lý do và liên kết PDF/quiz. Nộp bài tạo snapshot trong cùng giao dịch chấm điểm; retry không tạo thêm revision. Quiz/prerequisite/material thay đổi thì GET path cập nhật. Điểm rủi ro không điều khiển thứ tự lộ trình.
 

@@ -23,12 +23,16 @@ export default function TeacherQuizEditor({
   session,
   onChanged,
   onFailure,
+  onDirtyChange,
+  onBusyChange,
 }: {
   topic: Topic
   documents: LearningDocument[]
   session: Session
   onChanged: () => void
   onFailure: (error: unknown) => void
+  onDirtyChange?: (value: boolean) => void
+  onBusyChange?: (value: boolean) => void
 }) {
   const [questions, setQuestions] = useState<QuestionVersion[]>([])
   const [quizzes, setQuizzes] = useState<QuizMetadata[]>([])
@@ -43,6 +47,21 @@ export default function TeacherQuizEditor({
   const [message, setMessage] = useState('')
   const [reload, setReload] = useState(0)
   const csrfToken = session.csrf_token
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
+  useEffect(() => {
+    onDirtyChange?.(
+      Object.entries(blank()).some(([key, value]) => form[key as keyof typeof form] !== value),
+    )
+  }, [form, onDirtyChange])
+  useEffect(
+    () => () => {
+      onDirtyChange?.(false)
+      onBusyChange?.(false)
+    },
+    [onDirtyChange, onBusyChange],
+  )
   useEffect(() => {
     let stopped = false
     setLoading(true)

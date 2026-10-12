@@ -174,6 +174,18 @@ def create_enrollment(run_id: UUID, body: EnrollmentInput, response: Response, c
     return enrollment
 
 
+@router.get("/course-runs/{run_id}/enrollments")
+def list_enrollments(run_id: UUID, limit: Limit = 20, offset: Offset = 0,
+                     context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
+    owner_run(db, run_id, context.user.id)
+    query = select(Enrollment, User).join(User, User.id == Enrollment.student_id).where(Enrollment.course_run_id == run_id)
+    total = db.scalar(select(func.count()).select_from(query.subquery()))
+    rows = db.execute(query.order_by(User.display_name, User.id).limit(limit).offset(offset))
+    return {"items": [{"id": enrollment.id, "student_id": user.id, "student_email": user.email,
+                       "display_name": user.display_name, "status": enrollment.status} for enrollment, user in rows],
+            "total": total, "limit": limit, "offset": offset}
+
+
 @router.patch("/enrollments/{enrollment_id}", response_model=EnrollmentOutput)
 def patch_enrollment(enrollment_id: UUID, body: EnrollmentPatch, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     enrollment = db.get(Enrollment, enrollment_id)
@@ -215,6 +227,22 @@ def create_topic(course_id: UUID, body: TopicInput, context: AuthContext = Depen
     course.content_revision += 1
     db.commit()
     db.refresh(topic)
+    return topic_outputs(db, [topic])[0]
+
+
+@router.patch("/topics/{topic_id}", response_model=TopicOutput)
+def update_topic(topic_id: UUID, body: TopicInput, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
+    topic = db.get(Topic, topic_id)
+    if topic is None:
+        raise ApiError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy chủ đề.")
+    course = owner_course(db, topic.course_id, context.user.id, lock=True)
+    topic = db.get(Topic, topic_id, populate_existing=True)
+    values = body.model_dump()
+    if any(getattr(topic, name) != value for name, value in values.items()):
+        for name, value in values.items():
+            setattr(topic, name, value)
+        course.content_revision += 1
+        db.commit()
     return topic_outputs(db, [topic])[0]
 
 

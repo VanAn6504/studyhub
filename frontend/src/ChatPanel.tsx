@@ -64,7 +64,7 @@ export default function ChatPanel({ run, csrfToken, onExpired, onRead }: {
     <span className="eyebrow">HỎI TỪ TÀI LIỆU</span><h3 id="chat-title">Trợ giảng AI</h3>
     <p className="muted">Chatbot dùng tài liệu được giảng viên cho phép, gồm nguồn xử lý tự động và trang đã kiểm tra. Trang có cảnh báo chưa được cho phép sẽ bị loại. Mỗi câu hỏi được xử lý độc lập; nêu rõ thuật ngữ và mở trang trích dẫn để kiểm tra câu trả lời.</p>
     <p className="muted">Gemini nhận câu hỏi và tối đa 4 đoạn nguồn để trả lời; embedding được tạo trên máy. Đừng nhập mật khẩu hoặc thông tin cá nhân vào câu hỏi.</p>
-    {!canWrite && <p className="notice">Lượt học {run.data_origin === 'synthetic' ? 'mô phỏng' : 'đã đóng/chưa mở'}: chỉ xem lịch sử, không gửi câu hỏi mới.</p>}
+    {!canWrite && <p className="notice">Lớp học {run.data_origin === 'synthetic' ? 'mô phỏng' : 'đã đóng/chưa mở'}: chỉ xem lịch sử, không gửi câu hỏi mới.</p>}
     <div className="rag-actions">
       <label>Phiên trò chuyện
         <select value={sessionId} disabled={busy || loading} onChange={e => { setSessionId(e.target.value); setQuestion(''); setError(''); retry.current = null }}>

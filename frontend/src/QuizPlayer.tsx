@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { request } from './api'
 import type { CourseRun, QuizMetadata } from './api'
 import type { Attempt } from './learningTypes'
@@ -12,6 +12,8 @@ export default function QuizPlayer({
   onAttempt,
   onFailure,
   onCompleted,
+  onDirtyChange,
+  onBusyChange,
 }: {
   run: CourseRun
   topicId: string
@@ -21,12 +23,33 @@ export default function QuizPlayer({
   onAttempt: (attempt: Attempt | null) => void
   onFailure: (failure: unknown) => void
   onCompleted: () => void
+  onDirtyChange?: (value: boolean) => void
+  onBusyChange?: (value: boolean) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [answers, setAnswers] = useState<Record<string, string | null>>({})
   const [loadedAttempt, setLoadedAttempt] = useState<Attempt | null>(null)
   const key = useRef('')
+  useEffect(
+    () => () => {
+      onDirtyChange?.(false)
+      onBusyChange?.(false)
+    },
+    [onDirtyChange, onBusyChange],
+  )
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
+  useEffect(() => {
+    onDirtyChange?.(
+      !!attempt &&
+        attempt.status === 'in_progress' &&
+        attempt.items.some(
+          (item) => (answers[item.quiz_version_item_id] ?? null) !== item.selected_option,
+        ),
+    )
+  }, [attempt, answers, onDirtyChange])
   // An explicit reload/resume replaces the local answer buffer.
   if (attempt !== loadedAttempt) {
     setLoadedAttempt(attempt)
@@ -115,7 +138,7 @@ export default function QuizPlayer({
         ) : (
           <p className="muted">Giảng viên chưa công bố quiz cho chủ đề này.</p>
         )}
-        {!canWrite && <p className="muted">Lượt học này chỉ cho phép xem nội dung và lịch sử.</p>}
+        {!canWrite && <p className="muted">Lớp học này chỉ cho phép xem nội dung và lịch sử.</p>}
       </div>
     )
   const completed = attempt.status === 'completed'
