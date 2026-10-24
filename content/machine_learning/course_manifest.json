@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "prepared_on": "2026-10-24",
+  "id": "MACHINE_LEARNING",
+  "title": "Học máy",
+  "status": "selected_course_draft_content",
+  "description": "Học phần nhập môn học máy: quy trình xây dựng mô hình, hồi quy và phân lớp, ensemble, phân cụm, mạng nơ-ron, học sâu, học tăng cường và giải thuật di truyền. Kết hợp hiểu khái niệm, tính toán ví dụ nhỏ và thực hành Python.",
+  "source_directory_from_repo_root": "../Học máy",
+  "source_rights_public_distribution": "not_confirmed",
+  "page_numbering": "one_based_pdf_pages",
+  "course_run_start_date": null,
+  "workload_note": "Slide mở đầu ghi 30 tiết lý thuyết + 30 tiết thực hành; số tiết theo chương giữa các file không thống nhất, cần giảng viên xác nhận.",
+  "entry_prerequisites": [
+    "Python cơ bản; danh sách, hàm và thao tác dữ liệu dạng bảng.",
+    "Đại số tuyến tính, đạo hàm cơ bản và xác suất thống kê nhập môn."
+  ],
+  "documents": [
+    {
+      "id": "ML_CH01",
+      "filename": "Chuong_1.pdf",
+      "title": "Tổng quan về học máy",
+      "page_count": 47,
+      "sha256": "0d0cec2274be78fe98499685ef2d062e71fa6fe3d9154e2cf7b7b85e28dfd1b8",
+      "version": 1,
+      "rag_status": "not_ingested",
+      "role": "primary"
+    },
+    {
+      "id": "ML_CH02",
+      "filename": "Chuong_2_HocGiamSat_new1.pdf",
+      "title": "Học có giám sát",
+      "page_count": 138,
+      "sha256": "9af00ecaa01ebb8848a8170af67051b8423853a0ac79c1b918f009d2f670222f",
+      "version": 1,
+      "rag_status": "not_ingested",
+      "role": "primary"
+    },
+    {
+      "id": "ML_CH03",
+      "filename": "Chuong_3_ML_2024.pdf",
+      "title": "Học không giám sát và phân cụm",
+      "page_count": 44,
+      "sha256": "9cccac9a255018325660af07a3c7b159e5cf762d6258b14d7f4a067f90f4d765",
+      "version": 1,
+      "rag_status": "not_ingested",
+      "role": "primary"
+    },
+    {
+      "id": "ML_CH04",
+      "filename": "Chuong_4_ANN_HocSau.pdf",
+      "title": "Mạng nơ-ron, học sâu và học tăng cường",
+      "page_count": 81,
+      "sha256": "cbdf68f4633773b97078f0dd4ff647fc339cd38fdedacc49efd2269e6b0bec5d",
+      "version": 1,
+      "rag_status": "not_ingested",
+      "role": "primary"
+    },
+    {
+      "id": "ML_CH05",
+      "filename": "Chuong_5HocKhongGiamSat_GA_New2.pdf",
+      "title": "Phân cụm và giải thuật di truyền",
+      "page_count": 41,
+      "sha256": "5936a6f74e877f54927d4837a74dd95d8d0ca1246a66fbd766c7546986008238",
+      "version": 1,
+      "rag_status": "not_ingested",
+      "role": "primary"
+    },
+    {
+      "id": "ML_REF01",
+      "filename": "Introduction to Machine Learning with Python - A Guide for Data Scientists 2017.pdf",
+      "title": "Tài liệu đọc thêm: Introduction to Machine Learning with Python",
+      "page_count": 392,
+      "sha256": "ad93562e3533ce05499d11ed144c93ce31d43ee82b1286288b8005fdcd581975",
+      "version": 1,
+      "rag_status": "not_ingested",
+      "role": "supplementary"
+    }
+  ],
+  "topics": [
+    {
+      "id": "ML01",
+      "title": "Tổng quan và quy trình học máy",
+      "order": 1,
+      "prerequisites": [],
+      "objectives": [
+        "Phân biệt dữ liệu huấn luyện và dữ liệu kiểm tra.",
+        "Xác định nhiệm vụ T, kinh nghiệm E và độ đo P."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH01",
+          "page_start": 10,
+          "page_end": 46
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML02",
+      "title": "Hồi quy tuyến tính và Gradient Descent",
+      "order": 2,
+      "prerequisites": [
+        "ML01"
+      ],
+      "objectives": [
+        "Tính dự đoán và MSE của mô hình tuyến tính đơn.",
+        "Tính gradient và một bước cập nhật trọng số."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH02",
+          "page_start": 3,
+          "page_end": 35
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML03",
+      "title": "Phân lớp bằng cây quyết định",
+      "order": 3,
+      "prerequisites": [
+        "ML01"
+      ],
+      "objectives": [
+        "Mô tả cấu trúc và đường suy luận của cây quyết định.",
+        "Trình bày nguyên tắc xây dựng cây từ trên xuống."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH02",
+          "page_start": 36,
+          "page_end": 61
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML04",
+      "title": "K láng giềng gần nhất và đánh giá mô hình",
+      "order": 4,
+      "prerequisites": [
+        "ML01"
+      ],
+      "objectives": [
+        "Thực hiện bỏ phiếu đa số với K láng giềng.",
+        "Tính khoảng cách Euclidean và phân biệt tập luyện với tập kiểm tra."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH02",
+          "page_start": 63,
+          "page_end": 74
+        },
+        {
+          "document_id": "ML_CH03",
+          "page_start": 14,
+          "page_end": 14
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML05",
+      "title": "SVM và bộ phân loại Naive Bayes",
+      "order": 5,
+      "prerequisites": [
+        "ML01"
+      ],
+      "objectives": [
+        "Nêu vai trò của kernel trong SVM.",
+        "Phân biệt xác suất tiền định, hậu định và giả định độc lập có điều kiện."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH02",
+          "page_start": 75,
+          "page_end": 96
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML06",
+      "title": "Ensemble: Random Forest và Gradient Boosting",
+      "order": 6,
+      "prerequisites": [
+        "ML03"
+      ],
+      "objectives": [
+        "Phân biệt Bagging với Boosting.",
+        "Giải thích bootstrap, bỏ phiếu và ý nghĩa số cây."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH02",
+          "page_start": 98,
+          "page_end": 134
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML07",
+      "title": "Phân cụm K-means và phân cụm phân cấp",
+      "order": 7,
+      "prerequisites": [
+        "ML01"
+      ],
+      "objectives": [
+        "Tính tâm cụm và giải thích vai trò của K.",
+        "Phân biệt AGNES, DIANA và tiêu chí đánh giá phân cụm."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH03",
+          "page_start": 9,
+          "page_end": 43
+        },
+        {
+          "document_id": "ML_CH05",
+          "page_start": 4,
+          "page_end": 27
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML08",
+      "title": "Mạng nơ-ron và lan truyền ngược",
+      "order": 8,
+      "prerequisites": [
+        "ML02"
+      ],
+      "objectives": [
+        "Phân biệt lan truyền tiến và lan truyền ngược.",
+        "Tính giá trị, đạo hàm của đồ thị tính toán đơn giản."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH04",
+          "page_start": 3,
+          "page_end": 34
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML09",
+      "title": "Học sâu, CNN và học tăng cường",
+      "order": 9,
+      "prerequisites": [
+        "ML08"
+      ],
+      "objectives": [
+        "Nhận biết bài toán ảnh và chuỗi phù hợp CNN/RNN.",
+        "Tính kích thước đầu ra tích chập đơn giản và nêu vai trò phần thưởng."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH04",
+          "page_start": 34,
+          "page_end": 79
+        }
+      ],
+      "draft_question_count": 4
+    },
+    {
+      "id": "ML10",
+      "title": "Giải thuật di truyền và tối ưu hóa",
+      "order": 10,
+      "prerequisites": [
+        "ML01"
+      ],
+      "objectives": [
+        "Giải thích fitness, selection, crossover và mutation.",
+        "Mô tả chu trình tạo thế hệ mới và duy trì đa dạng quần thể."
+      ],
+      "resources": [
+        {
+          "document_id": "ML_CH05",
+          "page_start": 29,
+          "page_end": 40
+        }
+      ],
+      "draft_question_count": 4
+    }
+  ]
+}

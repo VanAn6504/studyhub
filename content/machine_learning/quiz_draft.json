@@ -1,0 +1,969 @@
+{
+  "schema_version": 1,
+  "course_id": "MACHINE_LEARNING",
+  "prepared_on": "2026-10-24",
+  "status": "draft_requires_content_review",
+  "page_numbering": "one_based_pdf_pages",
+  "questions": [
+    {
+      "id": "ML_Q001",
+      "version": 1,
+      "topic_id": "ML01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong mô tả một bài toán học máy bằng T, E, P, ký hiệu P chỉ điều gì?",
+      "options": {
+        "A": "Độ đo chất lượng thực hiện nhiệm vụ",
+        "B": "Tập dữ liệu đầu vào duy nhất",
+        "C": "Ngôn ngữ lập trình sử dụng",
+        "D": "Số tham số bắt buộc của mô hình"
+      },
+      "correct_option": "A",
+      "explanation": "T là nhiệm vụ, E là kinh nghiệm và P là độ đo dùng đánh giá mức độ thực hiện nhiệm vụ.",
+      "sources": [
+        {
+          "document_id": "ML_CH01",
+          "pdf_page": 36
+        }
+      ]
+    },
+    {
+      "id": "ML_Q002",
+      "version": 1,
+      "topic_id": "ML01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong sơ đồ huấn luyện được trình bày, labeled dataset là dữ liệu như thế nào?",
+      "options": {
+        "A": "Dữ liệu chỉ có dự đoán từ mô hình đã triển khai",
+        "B": "Dữ liệu có gắn nhãn phục vụ huấn luyện",
+        "C": "Dữ liệu luôn không có đầu ra đi kèm",
+        "D": "Dữ liệu bắt buộc chỉ gồm hình ảnh"
+      },
+      "correct_option": "B",
+      "explanation": "Sơ đồ dùng tập dữ liệu gắn nhãn để huấn luyện và tạo mô hình.",
+      "sources": [
+        {
+          "document_id": "ML_CH01",
+          "pdf_page": 24
+        }
+      ]
+    },
+    {
+      "id": "ML_Q003",
+      "version": 1,
+      "topic_id": "ML01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Sau bước huấn luyện, thành phần nào được dùng để dự đoán cho dữ liệu mới?",
+      "options": {
+        "A": "Đáp án thật chưa quan sát của dữ liệu mới",
+        "B": "Chỉ tên thuật toán, không cần tham số học được",
+        "C": "Mô hình đã được huấn luyện",
+        "D": "Bản sao rỗng của tập dữ liệu"
+      },
+      "correct_option": "C",
+      "explanation": "Giai đoạn dự đoán sử dụng trained model, khác với quá trình tạo mô hình từ dữ liệu huấn luyện.",
+      "sources": [
+        {
+          "document_id": "ML_CH01",
+          "pdf_page": 25
+        }
+      ]
+    },
+    {
+      "id": "ML_Q004",
+      "version": 1,
+      "topic_id": "ML01",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Bộ email được đánh dấu spam/ham phù hợp với cách học nào?",
+      "options": {
+        "A": "Phân cụm không sử dụng nhãn",
+        "B": "Tối ưu bằng giải thuật di truyền là lựa chọn duy nhất",
+        "C": "Hồi quy với mục tiêu số thực liên tục",
+        "D": "Học có giám sát cho bài toán phân lớp"
+      },
+      "correct_option": "D",
+      "explanation": "Spam/ham là các nhãn lớp cho sẵn; mô hình học từ email có nhãn để phân lớp email mới.",
+      "sources": [
+        {
+          "document_id": "ML_CH01",
+          "pdf_page": 41
+        }
+      ]
+    },
+    {
+      "id": "ML_Q005",
+      "version": 1,
+      "topic_id": "ML02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Đặc điểm nào của biến mục tiêu phù hợp với hồi quy được giới thiệu trong tài liệu?",
+      "options": {
+        "A": "Mục tiêu nhận giá trị số thực",
+        "B": "Mục tiêu chỉ được có đúng hai tên lớp",
+        "C": "Không tồn tại mục tiêu trong tập luyện",
+        "D": "Mục tiêu luôn là mã tài liệu PDF"
+      },
+      "correct_option": "A",
+      "explanation": "Hồi quy mô hình hóa quan hệ giữa đầu vào và mục tiêu dạng số, thường để dự đoán giá trị số thực.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 6
+        }
+      ]
+    },
+    {
+      "id": "ML_Q006",
+      "version": 1,
+      "topic_id": "ML02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Với x=[1,2,3], y=[2,4,6] và y_hat=3x, MSE bằng bao nhiêu?",
+      "options": {
+        "A": "14",
+        "B": "14/3",
+        "C": "0",
+        "D": "7/3"
+      },
+      "correct_option": "B",
+      "explanation": "Sai số lần lượt là 1, 2, 3; bình phương là 1, 4, 9. MSE=(1+4+9)/3=14/3.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 11
+        }
+      ]
+    },
+    {
+      "id": "ML_Q007",
+      "version": 1,
+      "topic_id": "ML02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Với x=[1,2,3], y=[2,4,6] và y_hat=wx, giá trị w nào cho MSE bằng 0?",
+      "options": {
+        "A": "w=0",
+        "B": "w=1",
+        "C": "w=2",
+        "D": "w=3"
+      },
+      "correct_option": "C",
+      "explanation": "Khi w=2, dự đoán trùng cả ba mục tiêu, nên mọi sai số bình phương đều bằng 0.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 15
+        }
+      ]
+    },
+    {
+      "id": "ML_Q008",
+      "version": 1,
+      "topic_id": "ML02",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Cho loss=(xw-y)^2, x=1, y=2, w=1 và learning rate=0.01. Sau một bước w_new=w-0.01*gradient, w_new bằng bao nhiêu?",
+      "options": {
+        "A": "0.98",
+        "B": "1.20",
+        "C": "2.00",
+        "D": "1.02"
+      },
+      "correct_option": "D",
+      "explanation": "Gradient=2*x*(x*w-y)=2*1*(1-2)=-2. Do đó w_new=1-0.01*(-2)=1.02.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 34
+        }
+      ]
+    },
+    {
+      "id": "ML_Q009",
+      "version": 1,
+      "topic_id": "ML03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Khi phân lớp bằng cây quyết định, ta thường duyệt theo hướng nào?",
+      "options": {
+        "A": "Từ nút gốc theo các nhánh đến nút lá",
+        "B": "Từ mọi nút lá cùng lúc rồi lấy trung bình mã nút",
+        "C": "Từ nút lá đi ngược lên gốc để tạo dữ liệu huấn luyện",
+        "D": "Chỉ đọc tên cây mà không xét thuộc tính đầu vào"
+      },
+      "correct_option": "A",
+      "explanation": "Cây quyết định suy luận bằng các phép kiểm tra trên đường từ gốc đến lá để xác định lớp.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 43
+        }
+      ]
+    },
+    {
+      "id": "ML_Q010",
+      "version": 1,
+      "topic_id": "ML03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong mô tả cây quyết định của tài liệu, mỗi nhánh biểu diễn điều gì?",
+      "options": {
+        "A": "Một epoch của mạng nơ-ron",
+        "B": "Một giá trị có thể có của thuộc tính được xét",
+        "C": "Một tập trọng số tích chập",
+        "D": "Một chỉ số MSE bắt buộc bằng 0"
+      },
+      "correct_option": "B",
+      "explanation": "Các nhánh tương ứng các giá trị của thuộc tính tại nút kiểm tra.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 43
+        }
+      ]
+    },
+    {
+      "id": "ML_Q011",
+      "version": 1,
+      "topic_id": "ML03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Đặc điểm tìm kiếm nào được nêu cho nhiều thuật toán xây dựng cây quyết định?",
+      "options": {
+        "A": "Luôn liệt kê hết mọi cây trước khi chọn",
+        "B": "Chỉ xây cây từ dưới lên bằng khoảng cách cụm",
+        "C": "Xây dựng từ trên xuống và tìm kiếm tham lam",
+        "D": "Không dùng dữ liệu huấn luyện khi chọn nhánh"
+      },
+      "correct_option": "C",
+      "explanation": "Tài liệu mô tả cách xây dựng top-down bằng greedy search, tiếp tục phát triển các nhánh.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 46
+        }
+      ]
+    },
+    {
+      "id": "ML_Q012",
+      "version": 1,
+      "topic_id": "ML03",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Trong quá trình xây cây, việc chọn thuộc tính để phân nhánh dựa trên cơ sở nào?",
+      "options": {
+        "A": "Thứ tự chữ cái của tên file dữ liệu",
+        "B": "Màu hiển thị của thuộc tính trên giao diện",
+        "C": "Luôn chọn thuộc tính cuối mà không đánh giá",
+        "D": "Một độ đo thống kê hoặc tiêu chí heuristic"
+      },
+      "correct_option": "D",
+      "explanation": "Thuộc tính phân nhánh được chọn bằng tiêu chí đánh giá, sau đó quá trình được lặp lại ở các nhánh.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 46
+        }
+      ]
+    },
+    {
+      "id": "ML_Q013",
+      "version": 1,
+      "topic_id": "ML04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong K-NN, tham số K biểu thị điều gì?",
+      "options": {
+        "A": "Số láng giềng gần nhất được xét",
+        "B": "Số tầng ẩn của mạng nơ-ron",
+        "C": "Số vòng lai tạo trong GA",
+        "D": "Số nhãn phải xóa trước huấn luyện"
+      },
+      "correct_option": "A",
+      "explanation": "K là số nguyên dương xác định số hàng xóm được sử dụng để quyết định lớp cho mẫu mới.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 65
+        }
+      ]
+    },
+    {
+      "id": "ML_Q014",
+      "version": 1,
+      "topic_id": "ML04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Với K=3 và nhãn của ba láng giềng gần nhất là A, B, B, bỏ phiếu đa số dự đoán lớp nào?",
+      "options": {
+        "A": "A",
+        "B": "B",
+        "C": "Không thể quyết định vì mọi trường hợp K lẻ đều hòa",
+        "D": "C"
+      },
+      "correct_option": "B",
+      "explanation": "B có hai phiếu, A có một phiếu nên K-NN bỏ phiếu đa số chọn B; giả định không dùng trọng số khoảng cách.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 66
+        }
+      ]
+    },
+    {
+      "id": "ML_Q015",
+      "version": 1,
+      "topic_id": "ML04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Khoảng cách Euclidean giữa hai điểm (0,0) và (3,4) là bao nhiêu?",
+      "options": {
+        "A": "7",
+        "B": "25",
+        "C": "5",
+        "D": "1"
+      },
+      "correct_option": "C",
+      "explanation": "Khoảng cách Euclidean bằng sqrt((3-0)^2+(4-0)^2)=sqrt(25)=5.",
+      "sources": [
+        {
+          "document_id": "ML_CH03",
+          "pdf_page": 14
+        }
+      ]
+    },
+    {
+      "id": "ML_Q016",
+      "version": 1,
+      "topic_id": "ML04",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong quy trình đánh giá được giới thiệu, sau khi chia tập luyện và tập kiểm tra, tập nào dùng để đánh giá mô hình?",
+      "options": {
+        "A": "Chỉ tập luyện vừa dùng để học mô hình",
+        "B": "Chỉ những mẫu đã dự đoán đúng trong tập luyện",
+        "C": "Tập chỉ chứa tên các thuộc tính",
+        "D": "Tập kiểm tra"
+      },
+      "correct_option": "D",
+      "explanation": "Tài liệu tách bước học trên tập luyện khỏi bước đánh giá trên tập kiểm tra.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 72
+        }
+      ]
+    },
+    {
+      "id": "ML_Q017",
+      "version": 1,
+      "topic_id": "ML05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Kernel trong SVM được giới thiệu để hỗ trợ tình huống nào?",
+      "options": {
+        "A": "Dữ liệu khó phân tách tuyến tính trong không gian đầu vào",
+        "B": "Xóa toàn bộ nhãn của bài toán phân lớp",
+        "C": "Chuyển mọi bài toán thành phân cụm K-means",
+        "D": "Bảo đảm mọi mẫu huấn luyện đều có cùng giá trị"
+      },
+      "correct_option": "A",
+      "explanation": "Kernel giúp biểu diễn quan hệ trong không gian đặc trưng để hỗ trợ xây dựng ranh giới cho dữ liệu phi tuyến.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 83
+        }
+      ]
+    },
+    {
+      "id": "ML_Q018",
+      "version": 1,
+      "topic_id": "ML05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong ký hiệu Bayes với giả thuyết H và bằng chứng X, P(H) là gì?",
+      "options": {
+        "A": "Xác suất hậu định P(H|X)",
+        "B": "Xác suất tiền định của H",
+        "C": "Số chiều của X",
+        "D": "Xác suất của X với điều kiện H"
+      },
+      "correct_option": "B",
+      "explanation": "P(H) mô tả xác suất của giả thuyết trước khi xét bằng chứng X; khác với P(H|X).",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 91
+        }
+      ]
+    },
+    {
+      "id": "ML_Q019",
+      "version": 1,
+      "topic_id": "ML05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Naive Bayes dùng giả định nào để phân tích P(X|C) thành tích các xác suất của thuộc tính?",
+      "options": {
+        "A": "Các thuộc tính luôn bằng nhau",
+        "B": "Các lớp không có xác suất tiền định",
+        "C": "Các thuộc tính độc lập có điều kiện khi biết lớp C",
+        "D": "Mọi thuộc tính đều phải có phân bố đều"
+      },
+      "correct_option": "C",
+      "explanation": "Giả định độc lập có điều kiện cho phép viết P(X|C) dưới dạng tích P(x_k|C), không yêu cầu độc lập vô điều kiện.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 94
+        }
+      ]
+    },
+    {
+      "id": "ML_Q020",
+      "version": 1,
+      "topic_id": "ML05",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Làm trơn Laplace được giới thiệu nhằm xử lý vấn đề nào trong Naive Bayes?",
+      "options": {
+        "A": "Số lớp luôn lớn hơn số mẫu",
+        "B": "Dữ liệu ảnh luôn có kích thước không hợp lệ",
+        "C": "Mọi dự đoán hồi quy đều có MSE âm",
+        "D": "Xác suất thành phần bằng 0 làm tích xác suất bằng 0"
+      },
+      "correct_option": "D",
+      "explanation": "Nếu một xác suất thành phần bằng 0, tích có thể bằng 0; cộng số đếm giả giúp tránh vấn đề này.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 95
+        }
+      ]
+    },
+    {
+      "id": "ML_Q021",
+      "version": 1,
+      "topic_id": "ML06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Random Forest kết hợp loại mô hình cơ sở nào?",
+      "options": {
+        "A": "Nhiều cây quyết định",
+        "B": "Chỉ một hàm tuyến tính không có tham số",
+        "C": "Một danh sách cụm không có cây",
+        "D": "Chỉ các toán tử đột biến"
+      },
+      "correct_option": "A",
+      "explanation": "Random Forest là tập hợp các cây quyết định; dự đoán được tổng hợp từ nhiều cây.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 103
+        }
+      ]
+    },
+    {
+      "id": "ML_Q022",
+      "version": 1,
+      "topic_id": "ML06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Lấy mẫu bootstrap có đặc điểm nào?",
+      "options": {
+        "A": "Bắt buộc không mẫu nào được xuất hiện hai lần",
+        "B": "Lấy mẫu ngẫu nhiên có hoàn lại",
+        "C": "Chỉ chọn mẫu có nhãn nhỏ nhất",
+        "D": "Xóa nhãn trước mỗi lần lấy mẫu"
+      },
+      "correct_option": "B",
+      "explanation": "Lấy mẫu có hoàn lại cho phép một quan sát xuất hiện nhiều lần trong mẫu bootstrap.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 104
+        }
+      ]
+    },
+    {
+      "id": "ML_Q023",
+      "version": 1,
+      "topic_id": "ML06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Với Bagging cho bài toán phân loại, cách tổng hợp nào được trình bày?",
+      "options": {
+        "A": "Chọn dự đoán của mô hình có tên dài nhất",
+        "B": "Cộng các mã lớp như số thực rồi không chuyển lại nhãn",
+        "C": "Bỏ phiếu đa số giữa các mô hình",
+        "D": "Chỉ giữ kết quả của mẫu đầu tiên"
+      },
+      "correct_option": "C",
+      "explanation": "Tài liệu phân biệt bỏ phiếu cho phân loại với lấy trung bình dự đoán cho hồi quy.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 105
+        }
+      ]
+    },
+    {
+      "id": "ML_Q024",
+      "version": 1,
+      "topic_id": "ML06",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Trong ví dụ Gradient Boosting hồi quy, cây tiếp theo được xây dựng để dự đoán đại lượng nào?",
+      "options": {
+        "A": "Tên cột đầu vào",
+        "B": "Chỉ số ngẫu nhiên không liên quan sai số",
+        "C": "Mã lớp được xóa khỏi dữ liệu",
+        "D": "Phần dư của dự đoán hiện tại"
+      },
+      "correct_option": "D",
+      "explanation": "Mỗi bước xây cây xấp xỉ phần dư, rồi kết hợp cập nhật có learning rate để cải thiện dự đoán hiện tại.",
+      "sources": [
+        {
+          "document_id": "ML_CH02",
+          "pdf_page": 124
+        }
+      ]
+    },
+    {
+      "id": "ML_Q025",
+      "version": 1,
+      "topic_id": "ML07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong K-means, tâm của một cụm được tính theo cách nào?",
+      "options": {
+        "A": "Lấy trung bình theo từng tọa độ của các điểm trong cụm",
+        "B": "Luôn chọn điểm có mã lớn nhất",
+        "C": "Lấy tổng nhãn lớp của toàn bộ dataset",
+        "D": "Luôn cố định tại gốc tọa độ"
+      },
+      "correct_option": "A",
+      "explanation": "Tâm cụm là vector trung bình của các vector dữ liệu thuộc cụm đó.",
+      "sources": [
+        {
+          "document_id": "ML_CH03",
+          "pdf_page": 22
+        }
+      ]
+    },
+    {
+      "id": "ML_Q026",
+      "version": 1,
+      "topic_id": "ML07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Một cụm gồm hai điểm (1,2) và (3,4). Tâm cụm K-means là điểm nào?",
+      "options": {
+        "A": "(4,6)",
+        "B": "(2,3)",
+        "C": "(1,4)",
+        "D": "(3,2)"
+      },
+      "correct_option": "B",
+      "explanation": "Trung bình từng tọa độ: ((1+3)/2,(2+4)/2)=(2,3).",
+      "sources": [
+        {
+          "document_id": "ML_CH03",
+          "pdf_page": 22
+        }
+      ]
+    },
+    {
+      "id": "ML_Q027",
+      "version": 1,
+      "topic_id": "ML07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Kết quả phân cụm tốt theo hai tiêu chí được giới thiệu có đặc điểm nào?",
+      "options": {
+        "A": "Điểm trong cụm xa nhau, các cụm chồng hoàn toàn",
+        "B": "Mỗi cụm bắt buộc có đúng hai điểm",
+        "C": "Điểm trong cùng cụm gần nhau, các cụm tách xa nhau",
+        "D": "Mọi khoảng cách phải bằng 0 kể cả giữa các cụm"
+      },
+      "correct_option": "C",
+      "explanation": "Compactness hướng đến độ gần trong cụm, còn separation hướng đến độ tách biệt giữa các cụm.",
+      "sources": [
+        {
+          "document_id": "ML_CH03",
+          "pdf_page": 21
+        }
+      ]
+    },
+    {
+      "id": "ML_Q028",
+      "version": 1,
+      "topic_id": "ML07",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "AGNES bắt đầu quá trình phân cụm như thế nào?",
+      "options": {
+        "A": "Tất cả đối tượng trong một cụm rồi chỉ phân tách",
+        "B": "Luôn bắt đầu với nhãn phân lớp có sẵn",
+        "C": "Khởi tạo một cây quyết định cho mỗi nhãn",
+        "D": "Mỗi đối tượng là một cụm rồi dần gộp các cụm"
+      },
+      "correct_option": "D",
+      "explanation": "AGNES là phân cụm phân cấp kết tụ theo hướng bottom-up, khác hướng phân tách top-down của DIANA.",
+      "sources": [
+        {
+          "document_id": "ML_CH03",
+          "pdf_page": 38
+        }
+      ]
+    },
+    {
+      "id": "ML_Q029",
+      "version": 1,
+      "topic_id": "ML08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong mạng truyền thẳng, thông tin lan truyền theo hướng nào?",
+      "options": {
+        "A": "Từ tầng vào đến tầng ra",
+        "B": "Từ nhãn kiểm tra vào file nguồn PDF",
+        "C": "Chỉ giữa các nút đầu ra, bỏ qua đầu vào",
+        "D": "Bắt buộc đi ngược từ tầng ra đến tầng vào khi dự đoán"
+      },
+      "correct_option": "A",
+      "explanation": "Lan truyền tiến tính các đại lượng của mạng theo hướng đầu vào tới đầu ra.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 23
+        }
+      ]
+    },
+    {
+      "id": "ML_Q030",
+      "version": 1,
+      "topic_id": "ML08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Lan truyền ngược gắn với kỹ thuật nào được nêu trong tài liệu?",
+      "options": {
+        "A": "Lấy mẫu bootstrap không hoàn lại",
+        "B": "Đạo hàm ngược trên đồ thị tính toán",
+        "C": "Gộp cụm theo AGNES",
+        "D": "Sắp xếp láng giềng theo tên"
+      },
+      "correct_option": "B",
+      "explanation": "Lan truyền ngược dùng reverse-mode differentiation để tính ảnh hưởng/gradient trên đồ thị.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 25
+        }
+      ]
+    },
+    {
+      "id": "ML_Q031",
+      "version": 1,
+      "topic_id": "ML08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Cho e=(a+b)*(b+1), a=2 và b=1. Giá trị e bằng bao nhiêu?",
+      "options": {
+        "A": "3",
+        "B": "4",
+        "C": "6",
+        "D": "9"
+      },
+      "correct_option": "C",
+      "explanation": "Thay giá trị vào biểu thức: e=(2+1)*(1+1)=3*2=6.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 17
+        }
+      ]
+    },
+    {
+      "id": "ML_Q032",
+      "version": 1,
+      "topic_id": "ML08",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Cho e=(a+b)*(b+1). Khi giữ b=1 cố định, đạo hàm riêng của e theo a bằng bao nhiêu?",
+      "options": {
+        "A": "1",
+        "B": "3",
+        "C": "6",
+        "D": "2"
+      },
+      "correct_option": "D",
+      "explanation": "Khi b cố định, de/da=b+1. Tại b=1, de/da=2. Đây là bài vận dụng biểu thức đồ thị trong slide.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 17
+        }
+      ]
+    },
+    {
+      "id": "ML_Q033",
+      "version": 1,
+      "topic_id": "ML09",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Cặp kiến trúc và loại dữ liệu nào phù hợp với mô tả trong tài liệu?",
+      "options": {
+        "A": "CNN cho ảnh; RNN cho thông tin dạng chuỗi",
+        "B": "CNN chỉ cho nhãn số; RNN chỉ cho ảnh tĩnh",
+        "C": "CNN là giải thuật di truyền; RNN là K-means",
+        "D": "CNN và RNN đều chỉ để tính khoảng cách Euclidean"
+      },
+      "correct_option": "A",
+      "explanation": "Tổng quan học sâu liên hệ CNN với phân tích ảnh, RNN với dữ liệu có tính tuần tự.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 40
+        }
+      ]
+    },
+    {
+      "id": "ML_Q034",
+      "version": 1,
+      "topic_id": "ML09",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Tích chập đầu vào 3x3, kernel 2x2, stride=1, padding=0 và dilation=1 cho kích thước không gian đầu ra nào?",
+      "options": {
+        "A": "1x1",
+        "B": "2x2",
+        "C": "3x3",
+        "D": "4x4"
+      },
+      "correct_option": "B",
+      "explanation": "Mỗi chiều đầu ra bằng floor((3-2)/1)+1=2. Không xét số kênh trong câu hỏi này.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 48
+        }
+      ]
+    },
+    {
+      "id": "ML_Q035",
+      "version": 1,
+      "topic_id": "ML09",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Trong học tăng cường, phần thưởng có vai trò nào?",
+      "options": {
+        "A": "Thay thế hoàn toàn môi trường bằng nhãn PDF",
+        "B": "Chỉ đánh số thứ tự các file huấn luyện",
+        "C": "Phản hồi về mức độ thành công của hành động đối với mục tiêu",
+        "D": "Bắt buộc bằng 0 cho mọi hành động"
+      },
+      "correct_option": "C",
+      "explanation": "Tác nhân tương tác với môi trường qua hành động, quan sát và phần thưởng để học cách thực hiện nhiệm vụ.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 72
+        }
+      ]
+    },
+    {
+      "id": "ML_Q036",
+      "version": 1,
+      "topic_id": "ML09",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Theo ví dụ MNIST trong slide, ảnh 28x28 pixel được biểu diễn thành vector bao nhiêu chiều?",
+      "options": {
+        "A": "28",
+        "B": "56",
+        "C": "70000",
+        "D": "784"
+      },
+      "correct_option": "D",
+      "explanation": "Ảnh 28x28 có 28*28=784 giá trị pixel, nên vector làm phẳng có 784 chiều trong ví dụ này.",
+      "sources": [
+        {
+          "document_id": "ML_CH04",
+          "pdf_page": 34
+        }
+      ]
+    },
+    {
+      "id": "ML_Q037",
+      "version": 1,
+      "topic_id": "ML10",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Toán tử selection trong GA có mục đích nào?",
+      "options": {
+        "A": "Ưu tiên cá thể có fitness tốt để truyền gen cho thế hệ sau",
+        "B": "Bảo đảm mọi gen lập tức bằng 0",
+        "C": "Chỉ chọn cá thể theo tên file",
+        "D": "Loại bỏ hoàn toàn bước đánh giá fitness"
+      },
+      "correct_option": "A",
+      "explanation": "Selection dùng mức độ thích nghi để ưu tiên cá thể làm bố mẹ cho thế hệ tiếp theo.",
+      "sources": [
+        {
+          "document_id": "ML_CH05",
+          "pdf_page": 33
+        }
+      ]
+    },
+    {
+      "id": "ML_Q038",
+      "version": 1,
+      "topic_id": "ML10",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Toán tử crossover trong GA thực hiện thao tác nào?",
+      "options": {
+        "A": "Đổi nhãn của mọi mẫu kiểm tra thành cùng một lớp",
+        "B": "Trao đổi phần gen giữa các cá thể bố mẹ để tạo cá thể con",
+        "C": "Tính trung bình tọa độ để tìm tâm cụm",
+        "D": "Tạo cây quyết định từ gốc đến lá"
+      },
+      "correct_option": "B",
+      "explanation": "Crossover tái tổ hợp thông tin di truyền từ bố mẹ tại các vị trí lai ghép.",
+      "sources": [
+        {
+          "document_id": "ML_CH05",
+          "pdf_page": 34
+        }
+      ]
+    },
+    {
+      "id": "ML_Q039",
+      "version": 1,
+      "topic_id": "ML10",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "easy",
+      "stem": "Mutation trong GA được dùng để hỗ trợ điều gì?",
+      "options": {
+        "A": "Bảo đảm mọi cá thể giống hệt nhau",
+        "B": "Bỏ hoàn toàn ngẫu nhiên khỏi thuật toán",
+        "C": "Duy trì đa dạng quần thể và hạn chế hội tụ sớm",
+        "D": "Bảo đảm đạt tối ưu toàn cục sau đúng một thế hệ"
+      },
+      "correct_option": "C",
+      "explanation": "Đột biến đưa biến đổi ngẫu nhiên vào gen; không bảo đảm tìm tối ưu toàn cục trong một số thế hệ cố định.",
+      "sources": [
+        {
+          "document_id": "ML_CH05",
+          "pdf_page": 35
+        }
+      ]
+    },
+    {
+      "id": "ML_Q040",
+      "version": 1,
+      "topic_id": "ML10",
+      "type": "single_choice",
+      "status": "draft",
+      "points": 1,
+      "difficulty": "medium",
+      "stem": "Thứ tự nào phù hợp với chu trình GA được giới thiệu?",
+      "options": {
+        "A": "Lai ghép trước khi có quần thể và không bao giờ đánh giá",
+        "B": "Đánh giá một lần rồi không tạo thế hệ mới",
+        "C": "Phân cụm, xóa quần thể, kết thúc ngay",
+        "D": "Khởi tạo, đánh giá, chọn bố mẹ, lai ghép, đột biến, đánh giá thế hệ mới"
+      },
+      "correct_option": "D",
+      "explanation": "GA bắt đầu với quần thể ban đầu và đánh giá fitness, rồi lặp các bước chọn, lai, đột biến và đánh giá.",
+      "sources": [
+        {
+          "document_id": "ML_CH05",
+          "pdf_page": 36
+        }
+      ]
+    }
+  ]
+}
