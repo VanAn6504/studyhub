@@ -10,6 +10,7 @@ PageNumber = Annotated[int, Field(strict=True, ge=1, le=500)]
 
 
 class DocumentPatch(Input):
+    code: Code | None = None
     title: Title | None = None
     status: Literal['draft', 'published', 'archived'] | None = None
 

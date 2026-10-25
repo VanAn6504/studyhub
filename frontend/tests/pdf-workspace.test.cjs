@@ -111,6 +111,9 @@ async function workspace(role = 'student', failFirstEvent = false) {
   let attempt = null,
     completed = false,
     eventFailed = false
+  let deleted = false
+  const questions = [],
+    quizzes = []
   const list = (items) => ({ items, total: items.length, limit: 100, offset: 0 })
   await context.route('**/api/**', async (route) => {
     const request = route.request(),
@@ -136,9 +139,59 @@ async function workspace(role = 'student', failFirstEvent = false) {
     else if (path === '/courses')
       payload = list([{ id: run.course_id, code: 'PDF_FIXTURE', title: run.course_title }])
     else if (path.endsWith('/topics')) payload = list([topic])
-    else if (path.endsWith('/question-versions') || path.endsWith('/quiz-versions'))
-      payload = list([])
-    else if (path.endsWith('/documents')) payload = list([document])
+    else if (path === '/documents/document-fixture' && method === 'PATCH') {
+      const patch = request.postDataJSON()
+      if (patch.code === 'DUPLICATE') {
+        await route.fulfill({
+          status: 409,
+          json: { error: { code: 'DOCUMENT_CODE_EXISTS', message: 'Mã tài liệu đã tồn tại.' } },
+        })
+        return
+      }
+      Object.assign(document, patch)
+      payload = document
+    } else if (path === '/documents/document-fixture' && method === 'DELETE') {
+      deleted = true
+      await route.fulfill({ status: 204 })
+      return
+    } else if (path === '/documents/document-fixture/file' && method === 'PUT') {
+      const multipart = request.postDataBuffer().toString('latin1')
+      if (!multipart.includes('%PDF-')) {
+        await route.fulfill({
+          status: 415,
+          json: { error: { code: 'PDF_REQUIRED', message: 'Tệp tải lên phải là PDF.' } },
+        })
+        return
+      }
+      document.status = 'draft'
+      document.versions = [
+        {
+          id: 'version-replacement',
+          version: 2,
+          page_count: 2,
+          status: 'ready',
+          original_filename: 'replacement.pdf',
+        },
+      ]
+      payload = document
+    } else if (path.endsWith('/questions') && method === 'POST') {
+      const body = request.postDataJSON()
+      payload = { ...body, id: `qv-${body.code}`, question_id: `q-${body.code}`, version: 1 }
+      questions.push(payload)
+    } else if (path.endsWith('/question-versions')) payload = list(questions)
+    else if (path.endsWith('/quiz-versions') && method === 'POST') {
+      const ids = request.postDataJSON().question_version_ids
+      payload = {
+        id: `quiz-${quizzes.length + 1}`,
+        version: quizzes.length + 1,
+        status: 'draft',
+        question_count: ids.length,
+        items: questions.filter((q) => ids.includes(q.id)),
+      }
+      quizzes.push(payload)
+    } else if (path.endsWith('/quiz-versions')) payload = list(quizzes)
+    else if (path.startsWith('/quiz-versions/')) payload = quizzes.find((q) => path.endsWith(q.id))
+    else if (path.endsWith('/documents')) payload = list(deleted ? [] : [document])
     else if (path.endsWith('/results'))
       payload = list(attempt?.status === 'completed' ? [attempt] : [])
     else if (path.endsWith('/report'))
@@ -309,7 +362,7 @@ async function workspace(role = 'student', failFirstEvent = false) {
     await page.getByRole('button', { name: 'Vào học', exact: true }).click()
   }
   await page.waitForLoadState('networkidle')
-  return { context, page, errors, requests, batches, events }
+  return { context, page, errors, requests, batches, events, questions, quizzes }
 }
 
 function countRequests(fixture, suffix) {
@@ -317,6 +370,163 @@ function countRequests(fixture, suffix) {
     (request) => request.method === 'GET' && request.path.endsWith(suffix),
   ).length
 }
+
+test(
+  'teacher edits metadata, replaces a PDF after validation and permanently deletes with cancellation',
+  { timeout: 60000 },
+  async () => {
+    const f = await workspace('teacher'),
+      p = f.page
+    try {
+      await p.getByRole('button', { name: 'Chỉnh sửa thông tin', exact: true }).click()
+      await p.getByLabel('Mã tài liệu', { exact: true }).fill('DUPLICATE')
+      await p.getByLabel('Tên tài liệu', { exact: true }).fill('Updated PDF title')
+      await p.getByRole('button', { name: 'Lưu thông tin', exact: true }).click()
+      await p.getByText('Mã tài liệu đã tồn tại.', { exact: true }).waitFor()
+      assert.equal(
+        await p.getByLabel('Tên tài liệu', { exact: true }).inputValue(),
+        'Updated PDF title',
+      )
+      await p.getByLabel('Mã tài liệu', { exact: true }).fill('UPDATED')
+      await p.getByRole('button', { name: 'Lưu thông tin', exact: true }).click()
+      await p.getByRole('heading', { name: 'Updated PDF title', exact: true }).waitFor()
+      await p.getByRole('button', { name: 'Chỉnh sửa thông tin', exact: true }).click()
+      await p.getByLabel('Thay file PDF — xóa file cũ', { exact: true }).check()
+      await p
+        .getByLabel('PDF thay thế', { exact: true })
+        .setInputFiles({
+          name: 'bad.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('invalid PDF'),
+        })
+      await p.getByRole('button', { name: 'Lưu thông tin', exact: true }).click()
+      await p.getByText('Tệp tải lên phải là PDF.', { exact: true }).waitFor()
+      assert.equal(
+        await p.getByLabel('Tên tài liệu', { exact: true }).inputValue(),
+        'Updated PDF title',
+      )
+      await p
+        .getByLabel('PDF thay thế', { exact: true })
+        .setInputFiles({
+          name: 'replacement.pdf',
+          mimeType: 'application/pdf',
+          buffer: fixturePdf(),
+        })
+      await p.getByRole('button', { name: 'Lưu thông tin', exact: true }).click()
+      await p
+        .getByText(
+          'Đã thay PDF và xóa file cũ. Kiểm tra, gắn vào chủ đề và công bố lại tài liệu.',
+          { exact: true },
+        )
+        .waitFor()
+      assert.equal(
+        await p.getByRole('button', { name: 'Thùng rác tài liệu', exact: true }).count(),
+        0,
+      )
+      await screenshot(p, 'document-replaced-desktop.png')
+      await p.setViewportSize({ width: 390, height: 844 })
+      assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      await screenshot(p, 'document-replaced-mobile.png')
+      p.once('dialog', (d) => d.dismiss())
+      await p.getByRole('button', { name: 'Xóa tài liệu', exact: true }).click()
+      assert.equal(f.requests.filter((r) => r.method === 'DELETE').length, 0)
+      p.once('dialog', (d) => {
+        assert.match(d.message(), /Xóa vĩnh viễn/)
+        return d.accept()
+      })
+      await p.getByRole('button', { name: 'Xóa tài liệu', exact: true }).click()
+      await p.getByText('Đã xóa vĩnh viễn tài liệu và các file PDF.', { exact: true }).waitFor()
+      assert.equal(await p.getByRole('button', { name: 'Mở tài liệu', exact: true }).count(), 0)
+      assert.equal(
+        await p.getByRole('button', { name: 'Khôi phục tài liệu', exact: true }).count(),
+        0,
+      )
+      assert.deepEqual(
+        f.errors.filter(
+          (e) => !e.includes('409 (Conflict)') && !e.includes('415 (Unsupported Media Type)'),
+        ),
+        [],
+      )
+    } finally {
+      await f.context.close()
+    }
+  },
+)
+
+test(
+  'JSON import selects 20 topic questions, supports 10/20 quiz creation and skips existing codes',
+  { timeout: 60000 },
+  async () => {
+    const f = await workspace('teacher'),
+      p = f.page
+    try {
+      await p.getByRole('button', { name: 'Chủ đề', exact: true }).click()
+      await p.getByRole('button', { name: 'Quản lý chủ đề', exact: true }).click()
+      await p.getByRole('button', { name: 'Biên soạn quiz', exact: true }).click()
+      assert.ok(await p.getByRole('button', { name: 'Chọn 10 câu', exact: true }).isDisabled())
+      const items = Array.from({ length: 20 }, (_, i) => ({
+        id: `Q${i}`,
+        topic_id: 'FL01',
+        stem: `Question ${i}`,
+        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+        correct_option: 'A',
+        explanation: 'Fixture explanation',
+        sources: [{ document_id: 'PDF', pdf_page: 1 }],
+      }))
+      const input = p.getByLabel('Nhập câu hỏi từ quiz_draft.json cho chủ đề đang chọn', {
+        exact: true,
+      })
+      const upload = (questions) =>
+        input.setInputFiles({
+          name: 'quiz_draft.json',
+          mimeType: 'application/json',
+          buffer: Buffer.from(JSON.stringify({ questions })),
+        })
+      await upload([{ ...items[0], sources: [{ document_id: 'MISSING', pdf_page: 1 }] }])
+      await p
+        .getByText('Hãy upload PDF MISSING và kiểm tra trang nguồn trước.', { exact: true })
+        .waitFor()
+      assert.equal(f.questions.length, 0)
+      // A whole-course file can exceed 100 entries; only this topic is imported.
+      const courseFile = [
+        ...items,
+        ...Array.from({ length: 90 }, (_, i) => ({
+          ...items[0],
+          id: `OTHER${i}`,
+          topic_id: 'OTHER',
+        })),
+      ]
+      await upload(courseFile)
+      await p.getByText('Đã chọn 20/20 câu', { exact: true }).waitFor()
+      assert.equal(
+        await p
+          .getByText('Hãy upload PDF MISSING và kiểm tra trang nguồn trước.', { exact: true })
+          .count(),
+        0,
+      )
+      assert.equal(f.questions.length, 20)
+      await p.getByRole('button', { name: 'Chọn 10 câu', exact: true }).click()
+      await p.getByRole('button', { name: 'Tạo quiz nháp (10 câu)', exact: true }).click()
+      await p.getByRole('heading', { name: 'Rà soát quiz bản 1', exact: true }).waitFor()
+      assert.equal(f.quizzes[0].items.length, 10)
+      await p.getByRole('button', { name: 'Chọn 20 câu', exact: true }).click()
+      await p.getByRole('button', { name: 'Tạo quiz nháp (20 câu)', exact: true }).click()
+      await p.getByRole('heading', { name: 'Rà soát quiz bản 2', exact: true }).waitFor()
+      assert.equal(f.quizzes[1].items.length, 20)
+      await p.getByRole('button', { name: 'Bỏ chọn tất cả', exact: true }).click()
+      assert.ok(
+        await p.getByRole('button', { name: 'Tạo quiz nháp (0 câu)', exact: true }).isDisabled(),
+      )
+      await upload(courseFile)
+      await p.getByText('Đã chọn 20/20 câu', { exact: true }).waitFor()
+      assert.equal(f.questions.length, 20, 'Re-import must not duplicate questions')
+      await screenshot(p, 'quiz-selection-desktop.png')
+      assert.deepEqual(f.errors, [])
+    } finally {
+      await f.context.close()
+    }
+  },
+)
 async function singlePanels(page, viewer = 0) {
   assert.equal(await page.locator('.guidance-panel').count(), 1, 'Only one learning path panel')
   assert.equal(await page.locator('.chat-panel').count(), 1, 'Only one chatbot panel')

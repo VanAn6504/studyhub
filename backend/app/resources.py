@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import TypeAdapter
 from pypdf import PdfReader
@@ -16,11 +16,13 @@ from app.config import get_settings
 from app.courses import Limit, Offset, accessible_run, owner_course
 from app.db import get_db
 from app.errors import ApiError
-from app.learning_models import Document, DocumentVersion, TopicMaterial
+from app.learning_models import Document, DocumentVersion, PdfFileDeletion, TopicMaterial
 from app.learning_schemas import DocumentPatch, MaterialsInput
 from app.models import Topic
 from app.schemas import Code, Title
 from app.security import AuthContext, get_auth, require_teacher
+from app.rag_models import DocumentChunk, RagPreparation
+from app.pdf_cleanup import cleanup_pdf_files
 
 router = APIRouter(tags=['documents'])
 MAX_PDF_BYTES = 20 * 1024 * 1024
@@ -39,7 +41,7 @@ def owner_topic(db, topic_id, teacher_id):
 
 def version_access(db, version_id, course_id, published=False):
     row = db.execute(select(DocumentVersion, Document).join(Document, Document.id == DocumentVersion.document_id)
-                     .where(DocumentVersion.id == version_id, Document.course_id == course_id, DocumentVersion.status == 'ready')).first()
+                     .where(DocumentVersion.id == version_id, Document.course_id == course_id, Document.deleted_at.is_(None), DocumentVersion.status == 'ready')).first()
     if row is None or (published and row[1].status != 'published'):
         not_found()
     return row
@@ -51,10 +53,10 @@ def version_output(version):
 
 def document_output(db, document):
     return {'id': document.id, 'code': document.code, 'title': document.title, 'status': document.status,
-            'versions': [version_output(v) for v in db.scalars(select(DocumentVersion).where(DocumentVersion.document_id == document.id).order_by(DocumentVersion.version.desc()))]}
+            'versions': [version_output(v) for v in db.scalars(select(DocumentVersion).where(DocumentVersion.document_id == document.id, DocumentVersion.status == 'ready').order_by(DocumentVersion.version.desc()))]}
 
 
-def persist_pdf(db, document, file):
+def persist_pdf(db, document, file, commit=True):
     data = file.file.read(MAX_PDF_BYTES + 1)
     if len(data) > MAX_PDF_BYTES:
         raise ApiError(413, 'PDF_TOO_LARGE', 'PDF tối đa 20 MiB.')
@@ -85,7 +87,7 @@ def persist_pdf(db, document, file):
         with path.open('xb') as target:
             target.write(data)
         db.add(version)
-        db.commit()
+        db.commit() if commit else db.flush()
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -101,7 +103,7 @@ def upload_document(course_id: UUID, file: UploadFile, code: str = Form(...), ti
     except ValueError:
         raise ApiError(422, 'DOCUMENT_METADATA_INVALID', 'Mã hoặc tên tài liệu không hợp lệ.')
     if db.scalar(select(Document.id).where(Document.course_id == course.id, Document.code == code)):
-        raise ApiError(409, 'DOCUMENT_CODE_EXISTS', 'Mã tài liệu đã tồn tại. Hãy thêm phiên bản mới.')
+        raise ApiError(409, 'DOCUMENT_CODE_EXISTS', 'Mã tài liệu đã tồn tại. Hãy dùng mã khác hoặc chỉnh sửa tài liệu.')
     document = Document(course_id=course.id, code=code, title=title, status='draft')
     db.add(document)
     db.flush()
@@ -111,32 +113,92 @@ def upload_document(course_id: UUID, file: UploadFile, code: str = Form(...), ti
 
 @router.post('/documents/{document_id}/versions', status_code=201)
 def upload_version(document_id: UUID, file: UploadFile, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
-    document = db.get(Document, document_id)
-    if not document:
-        not_found()
-    owner_course(db, document.course_id, context.user.id, lock=True)
+    document, _ = owned_document(db, document_id, context.user.id)
     version = persist_pdf(db, document, file)
     return version_output(version)
 
 
 @router.patch('/documents/{document_id}')
 def patch_document(document_id: UUID, body: DocumentPatch, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
+    document, course = owned_document(db, document_id, context.user.id)
+    if body.code and db.scalar(select(Document.id).where(Document.course_id == course.id, Document.code == body.code, Document.id != document.id)):
+        raise ApiError(409, 'DOCUMENT_CODE_EXISTS', 'Mã tài liệu đã tồn tại.')
+    if body.status == 'published' and not db.scalar(select(DocumentVersion.id).where(DocumentVersion.document_id == document.id, DocumentVersion.status == 'ready')):
+        raise ApiError(409, 'DOCUMENT_NOT_READY', 'Tài liệu chưa có PDF hợp lệ.')
+    values = body.model_dump(exclude_unset=True)
+    if any(getattr(document, field) != value for field, value in values.items()):
+        for field, value in values.items():
+            setattr(document, field, value)
+        course.content_revision += 1
+        db.commit()
+    return document_output(db, document)
+
+
+def owned_document(db, document_id, teacher_id, include_deleted=False):
     document = db.get(Document, document_id)
     if not document:
         not_found()
-    course = owner_course(db, document.course_id, context.user.id, lock=True)
-    db.refresh(document)
-    if body.status == 'published' and not db.scalar(select(DocumentVersion.id).where(DocumentVersion.document_id == document.id, DocumentVersion.status == 'ready')):
-        raise ApiError(409, 'DOCUMENT_NOT_READY', 'Tài liệu chưa có PDF hợp lệ.')
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(document, field, value)
+    course = owner_course(db, document.course_id, teacher_id, lock=True)
+    document = db.scalar(select(Document).where(Document.id == document_id).execution_options(populate_existing=True))
+    if not document:
+        not_found()
+    if document.deleted_at and not include_deleted:
+        not_found()
+    return document, course
+
+
+@router.delete('/documents/{document_id}', status_code=204)
+def delete_document(document_id: UUID, tasks: BackgroundTasks, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
+    document, course = owned_document(db, document_id, context.user.id, include_deleted=True)
+    remove_pdf_versions(db, list(db.scalars(select(DocumentVersion).where(DocumentVersion.document_id == document.id))))
+    db.delete(document)
     course.content_revision += 1
     db.commit()
+    tasks.add_task(cleanup_pdf_files)
+    return Response(status_code=204)
+
+
+def remove_pdf_versions(db, versions):
+    ids = [version.id for version in versions]
+    db.execute(delete(TopicMaterial).where(TopicMaterial.document_version_id.in_(ids)))
+    db.execute(delete(DocumentChunk).where(DocumentChunk.document_version_id.in_(ids)))
+    db.execute(delete(RagPreparation).where(RagPreparation.document_version_id.in_(ids)))
+    for version in versions:
+        if db.get(PdfFileDeletion, version.storage_key) is None:
+            db.add(PdfFileDeletion(storage_key=version.storage_key))
+        # Keep only version metadata for immutable quiz sources and event foreign keys.
+        version.document_id, version.status = None, 'deleted'
+
+
+@router.put('/documents/{document_id}/file')
+def replace_document_file(document_id: UUID, tasks: BackgroundTasks, file: UploadFile,
+                          code: str = Form(...), title: str = Form(...),
+                          context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
+    document, course = owned_document(db, document_id, context.user.id)
+    try:
+        code, title = TypeAdapter(Code).validate_python(code), TypeAdapter(Title).validate_python(title)
+    except ValueError:
+        raise ApiError(422, 'DOCUMENT_METADATA_INVALID', 'Mã hoặc tên tài liệu không hợp lệ.')
+    if db.scalar(select(Document.id).where(Document.course_id == course.id, Document.code == code, Document.id != document.id)):
+        raise ApiError(409, 'DOCUMENT_CODE_EXISTS', 'Mã tài liệu đã tồn tại.')
+    old = list(db.scalars(select(DocumentVersion).where(DocumentVersion.document_id == document.id)))
+    # Validate and write the new PDF before removing any old source or file.
+    version = persist_pdf(db, document, file, commit=False)
+    try:
+        remove_pdf_versions(db, old)
+        document.code, document.title, document.status = code, title, 'draft'
+        course.content_revision += 1
+        db.commit()
+    except Exception:
+        db.rollback()
+        (get_settings().pdf_storage_path / version.storage_key).unlink(missing_ok=True)
+        raise
+    tasks.add_task(cleanup_pdf_files)
     return document_output(db, document)
 
 
 def documents_page(db, course_id, published, limit, offset):
-    query = select(Document).where(Document.course_id == course_id)
+    query = select(Document).where(Document.course_id == course_id, Document.deleted_at.is_(None))
     if published:
         query = query.where(Document.status == 'published')
     total = db.scalar(select(func.count()).select_from(query.subquery()))
@@ -174,7 +236,7 @@ def map_materials(topic_id: UUID, body: MaterialsInput, context: AuthContext = D
 
 
 def materials_for_topic(db, topic_id, published=True):
-    query = select(TopicMaterial, DocumentVersion, Document).join(DocumentVersion, DocumentVersion.id == TopicMaterial.document_version_id).join(Document, Document.id == DocumentVersion.document_id).where(TopicMaterial.topic_id == topic_id)
+    query = select(TopicMaterial, DocumentVersion, Document).join(DocumentVersion, DocumentVersion.id == TopicMaterial.document_version_id).join(Document, Document.id == DocumentVersion.document_id).where(TopicMaterial.topic_id == topic_id, Document.deleted_at.is_(None))
     if published:
         query = query.where(Document.status == 'published', DocumentVersion.status == 'ready')
     return [{'document_version_id': v.id, 'document_code': d.code, 'title': d.title, 'version': v.version,

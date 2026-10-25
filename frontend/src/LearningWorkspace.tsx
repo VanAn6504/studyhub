@@ -16,6 +16,7 @@ import GuidancePanel, { stateLabels } from './GuidancePanel'
 import RagDocumentPanel from './RagDocumentPanel'
 import ChatPanel from './ChatPanel'
 import TopicEditor from './TopicEditor'
+import DocumentActions from './DocumentActions'
 import type { NavigationGuard, WorkspaceRoute } from './workspaceNavigation'
 import './learning.css'
 
@@ -746,6 +747,7 @@ export default function LearningWorkspace({
             session={session}
             onChanged={changed}
             onFailure={fail}
+            onActionStart={() => setError('')}
             onDirtyChange={setQuizDirty}
             onBusyChange={setQuizBusy}
           />
@@ -1039,6 +1041,39 @@ export default function LearningWorkspace({
                   )}
                 </>
               )}
+              <DocumentActions
+                document={version.document}
+                csrfToken={csrfToken}
+                onFailure={fail}
+                onSaved={(updated, replaced) => {
+                  setDocuments((all) =>
+                    all.map((item) => (item.id === updated.id ? updated : item)),
+                  )
+                  setError('')
+                  setMessage(
+                    replaced
+                      ? 'Đã thay PDF và xóa file cũ. Kiểm tra, gắn vào chủ đề và công bố lại tài liệu.'
+                      : 'Đã cập nhật thông tin tài liệu.',
+                  )
+                  if (replaced) {
+                    setPendingLink((old) =>
+                      version.document.versions.some((v) => v.id === old?.versionId) ? null : old,
+                    )
+                    go('document', { versionId: updated.versions[0]?.id })
+                  }
+                  changed()
+                }}
+                onDeleted={() => {
+                  setDocuments((all) => all.filter((item) => item.id !== version.document.id))
+                  setPendingLink((old) =>
+                    version.document.versions.some((v) => v.id === old?.versionId) ? null : old,
+                  )
+                  setError('')
+                  setMessage('Đã xóa vĩnh viễn tài liệu và các file PDF.')
+                  changed()
+                  go('materials', { versionId: undefined })
+                }}
+              />
               <RagDocumentPanel
                 versionId={version.id}
                 documentStatus={version.document.status}

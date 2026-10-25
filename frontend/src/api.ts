@@ -55,7 +55,7 @@ export class ApiError extends Error {
 }
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'PUT'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
   csrfToken?: string
 }
@@ -106,7 +106,9 @@ export async function listAll<T>(path: string): Promise<T[]> {
   const result: T[] = []
   let offset = 0
   while (true) {
-    const page = await request<Page<T>>(`${path}${path.includes('?') ? '&' : '?'}limit=100&offset=${offset}`)
+    const page = await request<Page<T>>(
+      `${path}${path.includes('?') ? '&' : '?'}limit=100&offset=${offset}`,
+    )
     result.push(...page.items)
     offset += page.items.length
     if (offset >= page.total || page.items.length === 0) return result

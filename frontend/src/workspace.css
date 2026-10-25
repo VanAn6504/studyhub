@@ -1,6 +1,14 @@
 .course-dashboard .workspace {
   max-width: 1250px;
 }
+.document-management,
+.quiz-selection-tools {
+  margin-top: 18px;
+}
+.document-delete {
+  color: #9b332e;
+  border-color: #dfbeb8;
+}
 .course-dashboard .section-heading {
   flex-wrap: wrap;
 }

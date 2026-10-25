@@ -1,4 +1,5 @@
 from uuid import uuid4
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from sqlalchemy import text
@@ -14,10 +15,17 @@ from app.upload_limit import RequestBodyLimit
 VERSION = "0.5.0"
 
 
+@asynccontextmanager
+async def lifespan(application):
+    from app.pdf_cleanup import cleanup_pdf_files
+    cleanup_pdf_files()
+    yield
+
+
 def create_app() -> FastAPI:
     # Fail before accepting requests if mandatory configuration is missing.
     settings = get_settings()
-    application = FastAPI(title="StudyHub API", version=VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+    application = FastAPI(title="StudyHub API", version=VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None, lifespan=lifespan)
     register_error_handlers(application)
 
     @application.middleware("http")

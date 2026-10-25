@@ -17,6 +17,7 @@ class Document(Base):
     code: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -24,7 +25,7 @@ class DocumentVersion(Base):
     __tablename__ = "document_versions"
     __table_args__ = (UniqueConstraint("document_id", "version"), CheckConstraint("version >= 1 AND page_count BETWEEN 1 AND 500 AND byte_size BETWEEN 1 AND 20971520"))
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), nullable=False)
+    document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documents.id", ondelete="SET NULL"))
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     storage_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     original_filename: Mapped[str] = mapped_column(Text, nullable=False)
@@ -33,6 +34,11 @@ class DocumentVersion(Base):
     byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="ready")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PdfFileDeletion(Base):
+    __tablename__ = 'pdf_file_deletions'
+    storage_key: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
 class TopicMaterial(Base):

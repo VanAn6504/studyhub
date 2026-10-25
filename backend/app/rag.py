@@ -47,10 +47,17 @@ def source_excerpt(text, quote):
 
 def owned_version(db, version_id, context, lock=False):
     version = db.get(DocumentVersion, version_id)
-    document = db.get(Document, version.document_id) if version else None
+    document = db.get(Document, version.document_id) if version and version.document_id else None
     if not document or version.status != 'ready':
         not_found()
     owner_course(db, document.course_id, context.user.id, lock=lock)
+    if lock:
+        document = db.scalar(select(Document).where(Document.id == document.id).execution_options(populate_existing=True))
+        db.refresh(version)
+        if not document or version.document_id != document.id or version.status != 'ready':
+            not_found()
+    if document.deleted_at:
+        not_found()
     return version, document
 
 

@@ -23,6 +23,7 @@ export default function TeacherQuizEditor({
   session,
   onChanged,
   onFailure,
+  onActionStart,
   onDirtyChange,
   onBusyChange,
 }: {
@@ -31,6 +32,7 @@ export default function TeacherQuizEditor({
   session: Session
   onChanged: () => void
   onFailure: (error: unknown) => void
+  onActionStart?: () => void
   onDirtyChange?: (value: boolean) => void
   onBusyChange?: (value: boolean) => void
 }) {
@@ -149,18 +151,30 @@ export default function TeacherQuizEditor({
   }
   async function importDraft(file?: File) {
     if (!file) return
+    onActionStart?.()
     setBusy(true)
     setMessage('')
     let added = 0
     try {
       if (file.size > 1024 * 1024) throw new Error('Tệp câu hỏi tối đa 1 MiB.')
       const data = JSON.parse(await file.text())
-      if (!Array.isArray(data.questions) || data.questions.length > 100)
-        throw new Error('Tệp cần có danh sách questions, tối đa 100 câu.')
+      if (!Array.isArray(data.questions) || data.questions.length > 1000)
+        throw new Error('Tệp cần có danh sách questions, tối đa 1000 câu cho nhiều chủ đề.')
       const items = data.questions.filter(
         (item: { topic_id: string }) => item.topic_id === topic.code,
       )
       if (!items.length) throw new Error(`Không có câu hỏi cho ${topic.code} trong tệp này.`)
+      if (items.length > 100)
+        throw new Error(
+          `Mỗi lần nhập tối đa 100 câu cho ${topic.code}. Hãy tách thành nhiều tệp nếu cần thêm vào ngân hàng.`,
+        )
+      const importedIds = questions
+        .filter(
+          (q) =>
+            items.some((item: { id: string }) => item.id === q.code) &&
+            latest.some((value) => value.id === q.id),
+        )
+        .map((q) => q.id)
       // Validate all source references before importing this topic's drafts.
       const prepared = items
         .filter((item: { id: string }) => !questions.some((value) => value.code === item.id))
@@ -190,11 +204,18 @@ export default function TeacherQuizEditor({
           }),
         )
       for (const body of prepared) {
-        await request(`/topics/${topic.id}/questions`, { method: 'POST', csrfToken, body })
+        const saved = await request<QuestionVersion>(`/topics/${topic.id}/questions`, {
+          method: 'POST',
+          csrfToken,
+          body,
+        })
+        importedIds.push(saved.id)
+        setChosen([...importedIds])
         added++
       }
+      setChosen(importedIds)
       setMessage(
-        `Đã nhập ${added} câu nháp cho ${topic.code}; bỏ qua mã đã có. Hãy rà soát câu hỏi trước khi tạo và công bố quiz.`,
+        `Đã nhập ${added} câu nháp cho ${topic.code}; bỏ qua mã đã có. Đã chọn ${importedIds.length} câu từ tệp. Hãy rà soát trước khi tạo và công bố quiz.`,
       )
     } catch (failure) {
       if (added) setMessage(`Đã nhập ${added} câu trước khi gặp lỗi; có thể nhập lại để tiếp tục.`)
@@ -251,7 +272,7 @@ export default function TeacherQuizEditor({
                 value={form.code}
                 disabled={!!editingId}
                 maxLength={64}
-                pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
+                pattern="[A-Za-z0-9]([A-Za-z0-9_]|-)*"
                 onChange={(event) => setForm({ ...form, code: event.target.value })}
               />
             </label>
@@ -365,14 +386,47 @@ export default function TeacherQuizEditor({
         />
       </label>
       <p className="muted">
-        Tối thiểu 3 câu/quiz; mỗi câu 1 điểm, ngưỡng đạt 70%. Chọn bản câu hỏi mới nhất đã rà soát.
+        Mỗi quiz có từ 3 đến 100 câu; có thể tạo bộ 10 hoặc 20 câu. Mỗi câu 1 điểm, ngưỡng đạt 70%.
+        Tệp cần có đủ số câu cho chủ đề đang chọn; hệ thống nhập các câu có trong tệp.
       </p>
+      <div className="workspace-actions quiz-selection-tools">
+        <strong>
+          Đã chọn {chosen.length}/{latest.length} câu
+        </strong>
+        {[10, 20].map((count) => (
+          <button
+            type="button"
+            className="button button-secondary"
+            key={count}
+            disabled={busy || latest.length < count}
+            onClick={() => setChosen(latest.slice(0, count).map((q) => q.id))}
+          >
+            Chọn {count} câu
+          </button>
+        ))}
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={busy || !latest.length}
+          onClick={() => setChosen(latest.slice(0, 100).map((q) => q.id))}
+        >
+          {latest.length > 100 ? 'Chọn 100 câu đầu' : 'Chọn tất cả câu'}
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          disabled={busy || !chosen.length}
+          onClick={() => setChosen([])}
+        >
+          Bỏ chọn tất cả
+        </button>
+      </div>
       {latest.map((question) => (
         <div className="question-select" key={question.id}>
           <label>
             <input
               type="checkbox"
-              disabled={busy}
+              disabled={busy || (!chosen.includes(question.id) && chosen.length >= 100)}
               checked={chosen.includes(question.id)}
               onChange={(event) =>
                 setChosen((values) =>
@@ -412,7 +466,7 @@ export default function TeacherQuizEditor({
       )}
       <button
         className="button button-secondary"
-        disabled={busy || chosen.length < 3}
+        disabled={busy || chosen.length < 3 || chosen.length > 100}
         onClick={createQuiz}
       >
         Tạo quiz nháp ({chosen.length} câu)

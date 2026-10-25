@@ -131,6 +131,21 @@ API bổ sung cho không gian giảng viên:
 
 Không cần migration mới cho bố cục này. Việc đổi giao diện không xác nhận độ chính xác dự báo trên sinh viên hoặc khả năng chịu tải RAG nhiều học phần; hai phần đó cần nghiệm thu riêng.
 
+### Chỉnh sửa, xóa tài liệu và chọn số câu quiz
+
+- Trong **Tài liệu**, chọn **Chỉnh sửa thông tin** để đổi mã/tên. Đánh dấu **Thay file PDF — xóa file cũ**, chọn **PDF thay thế** rồi lưu để thay nội dung ngay trong form. File mới phải hợp lệ trước khi file cũ bị xóa. Sau khi thay, tài liệu về nháp, tắt RAG và bỏ liên kết trang cũ; kiểm tra/gắn lại chủ đề/công bố. Có thể dùng **Thêm phiên bản PDF** trong trang chi tiết khi muốn giữ các file cũ thay vì xóa chúng.
+- **Xóa tài liệu** yêu cầu xác nhận rồi xóa vĩnh viễn tài liệu và mọi file PDF của nó, gỡ liên kết chủ đề và xóa corpus/embedding/trạng thái RAG. Không có thùng rác/khôi phục. Điểm, quiz và log đã ghi được giữ; nguồn PDF đã xóa/thay không mở được và không tự trỏ sang file mới. Mã tài liệu được dùng lại sau khi xóa.
+- Trong **Biên soạn quiz**, nhập JSON đúng cấu trúc `quiz_draft.json`; tối đa 1 MiB, 1000 câu trong file nhiều chủ đề và 100 câu của chủ đề đang chọn mỗi lần nhập. Hệ thống nhập các câu có trong file, bỏ qua mã đã tồn tại và tự chọn các câu thuộc lần nhập đó. File cần có đủ câu cho chủ đề; không tự sinh thêm câu hỏi.
+- Dùng **Chọn 10 câu**, **Chọn 20 câu**, **Chọn tất cả câu** hoặc tích từng câu. Nút chọn nhanh lấy các câu đầu trong ngân hàng đang hiển thị; chỉ bật khi đủ câu. Mỗi quiz hỗ trợ **3–100 câu**. Tạo nháp → kiểm tra câu hỏi/đáp án/nguồn → xác nhận → công bố.
+
+API quản lý tài liệu (chỉ chủ sở hữu học phần; thao tác ghi yêu cầu CSRF):
+
+- PATCH `/api/v1/documents/{id}` nhận `code`, `title`, `status`; mã trùng trả 409. Giữ ID và các phiên bản PDF.
+- PUT `/api/v1/documents/{id}/file` nhận multipart `code`, `title`, `file`: thay PDF và metadata trong một giao dịch, xóa các file cũ sau commit; file không hợp lệ không thay đổi tài liệu cũ. Giữ ID tài liệu, tạo ID phiên bản mới.
+- DELETE `/api/v1/documents/{id}` trả 204, xóa bản ghi tài liệu, bỏ mapping/corpus và các file PDF. ID không còn tồn tại trả 404. Không còn endpoint khôi phục hoặc danh sách thùng rác.
+
+Cần migration **0008_permanent_documents**: cho phép phiên bản mất liên kết tài liệu đã xóa để giữ khóa tham chiếu của log/quiz, và thêm hàng đợi dọn file. Chỉ giữ metadata phiên bản lịch sử, không giữ PDF hoặc corpus để khôi phục. Tác vụ dọn file chạy sau commit; nếu ổ lưu trữ tạm bị khóa thì giữ yêu cầu và thử lại ở lượt dọn kế tiếp hoặc khi backend khởi động. Migration không tự xóa tài liệu đã có. Chạy `docker compose up -d --build` hoặc `alembic upgrade head` trước khi khởi động backend. Sao lưu database và volume PDF cùng nhau; sau khi đã xóa vĩnh viễn, muốn quay lại dữ liệu cũ phải khôi phục cả hai từ backup.
+
 ## Lộ trình cá nhân hóa
 
 Sinh viên vào học phần → **Lộ trình & tiến độ** để xem **Bước học tiếp theo**. Bài hoàn thành mới nhất của quiz đang công bố xác định `weak`/`mastered`; chưa làm là `not_assessed`, chưa có quiz đủ câu là `not_available`. Quy tắc `path_rules_v1` ưu tiên chủ đề yếu, thêm tiên quyết chưa đạt trước, rồi chủ đề chưa đánh giá. Tiên quyết chưa có quiz tạo cảnh báo nhưng không khóa học.
