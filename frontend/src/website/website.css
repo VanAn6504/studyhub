@@ -130,6 +130,11 @@
   min-height: 110px;
   resize: vertical;
 }
+.site-shell input::placeholder,
+.site-shell textarea::placeholder {
+  color: #52665c;
+  opacity: 1;
+}
 .site-shell label {
   font-weight: 600;
   display: grid;

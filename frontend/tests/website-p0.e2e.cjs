@@ -329,6 +329,15 @@ test('responsive principal pages, safe return URLs, error retry and expired sess
   await g.unroute('**/api/v1/catalog/courses?*')
   await g.getByRole('button',{name:'Thử lại',exact:true}).click()
   await g.locator('.catalog-card').first().waitFor()
+  const contrast=await g.locator('#catalog-q').evaluate(input=>{
+    const luminance=color=>{
+      const rgb=color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4)
+      return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722
+    }
+    const text=luminance(getComputedStyle(input,'::placeholder').color),background=luminance(getComputedStyle(input).backgroundColor)
+    return (Math.max(text,background)+.05)/(Math.min(text,background)+.05)
+  })
+  assert.ok(contrast>=4.5,'Search hint text has sufficient contrast')
   for(const path of ['/help','/about','/privacy']) {
     await g.goto(origin+path,{waitUntil:'networkidle'})
     assert.ok(await g.locator('main h1').isVisible())

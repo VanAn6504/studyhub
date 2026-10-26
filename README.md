@@ -133,6 +133,8 @@ backend/.venv/Scripts/python.exe scripts/test_website.py
 
 Lệnh này chạy cả E2E website và bộ UI hồi quy PDF/quiz/RAG/lộ trình trên cùng phiên bản frontend.
 
+Vite được nâng tối thiểu lên8.3.5 cùng lockfile để nhận bản vá dev server/launch-editor trên Windows ([thông báo của tác giả](https://github.com/vitejs/launch-editor/security/advisories/GHSA-587h-7wmj-h5pm)); không thêm thư viện routing hoặc dependency sản phẩm mới.
+
 Runner tạo database `_test` riêng, migrate/seed với tài khoản sinh riêng, mở FastAPI/Vite tại cổng loopback tạm rồi chạy Playwright. Không đổi dữ liệu thật; database đạt kiểm thử được xóa, database thất bại giữ lại để chẩn đoán (`--keep-db` giữ cả lần đạt). Log/ảnh ở `.local/website-p0/runs/`; `environment.json` tại đó chứa bí mật kiểm thử, không chia sẻ/commit. Windows mặc định dùng Edge đã cài; môi trường khác cần browser Chromium của Playwright. Các ca lỗi mạng/hết phiên được gây lỗi có chủ đích ở trình duyệt; luồng nghiệp vụ chính dùng API/PostgreSQL thật. Kiểm thử này tắt provider chat để không gửi dữ liệu ra ngoài hoặc tiêu quota Gemini; chất lượng mô hình thật phải nghiệm thu riêng.
 
 ### API website P0
