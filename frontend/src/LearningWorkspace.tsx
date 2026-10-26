@@ -19,6 +19,8 @@ import TopicEditor from './TopicEditor'
 import DocumentActions from './DocumentActions'
 import type { NavigationGuard, WorkspaceRoute } from './workspaceNavigation'
 import './learning.css'
+import { replacePosition } from './website/navigation'
+import { routeHash } from './workspaceNavigation'
 
 export default function LearningWorkspace({
   courseId,
@@ -331,6 +333,19 @@ export default function LearningWorkspace({
   function updateAttempt(value: Attempt | null) {
     setAttempt(value)
     if (value) setHistory((all) => [value, ...all.filter((item) => item.id !== value.id)])
+    if (value?.status === 'completed' && run && !teacher) {
+      void request('/me/resume', {
+        method: 'PUT',
+        csrfToken,
+        body: {
+          run_id: run.id,
+          topic_id: value.topic_id,
+          document_version_id: null,
+          view: 'results',
+          page: 1,
+        },
+      }).catch(() => {})
+    }
   }
   async function resume(value: Attempt) {
     if (quizDirty) {
@@ -797,13 +812,19 @@ export default function LearningWorkspace({
             </aside>
             <Suspense fallback={<p role="status">Đang mở trình xem PDF…</p>}>
               <PdfViewer
-                key={`${teacher ? 'teacher' : run?.id}:${selectedVersion.id}:${route.page || 1}`}
+                key={`${teacher ? 'teacher' : run?.id}:${selectedVersion.id}`}
                 runId={run?.id}
                 versionId={selectedVersion.id}
                 title={`${selectedVersion.document.code} · ${selectedVersion.document.title} · Bản ${selectedVersion.version}`}
                 teacherPreview={teacher}
                 initialPage={route.page || 1}
                 onEvent={canWrite ? record : undefined}
+                onPosition={(page) => {
+                  if (page !== (route.page || 1))
+                    replacePosition(
+                      routeHash({ ...route, page, actor: teacher ? 'teacher' : 'student' }),
+                    )
+                }}
                 onClose={() => go(viewerReturn.current)}
               />
             </Suspense>

@@ -13,6 +13,7 @@ export default function PdfViewer({
   initialPage = 1,
   teacherPreview = false,
   onEvent,
+  onPosition,
   onClose,
 }: {
   runId?: string
@@ -21,6 +22,7 @@ export default function PdfViewer({
   initialPage?: number
   teacherPreview?: boolean
   onEvent?: (event: LearningEventInput) => void
+  onPosition?: (page: number) => void
   onClose: () => void
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
@@ -36,10 +38,16 @@ export default function PdfViewer({
   const lastPage = useRef(0)
   const eventCallback = useRef(onEvent)
   eventCallback.current = onEvent
+  const positionCallback = useRef(onPosition)
+  positionCallback.current = onPosition
+  useEffect(() => {
+    if (pdf && initialPage >= 1 && initialPage <= pdf.numPages) setPage(initialPage)
+  }, [initialPage, pdf])
 
   useEffect(() => {
     const task = getDocument({
-      url: teacherPreview ? `/api/v1/document-versions/${versionId}/content`
+      url: teacherPreview
+        ? `/api/v1/document-versions/${versionId}/content`
         : `/api/v1/course-runs/${runId}/document-versions/${versionId}/content`,
       withCredentials: true,
     })
@@ -112,6 +120,7 @@ export default function PdfViewer({
       clearTimeout(timer)
       if (!visible || document.visibilityState !== 'visible') return
       timer = setTimeout(() => {
+        positionCallback.current?.(page)
         const callback = eventCallback.current
         if (!callback) return
         const base = { viewer_session_id: session.current, document_version_id: versionId }

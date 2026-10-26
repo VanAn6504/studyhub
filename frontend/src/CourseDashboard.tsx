@@ -4,7 +4,14 @@ import { ApiError, errorMessage, listAll, request } from './api'
 import type { Course, CourseRun, Session, Topic } from './api'
 import LearningWorkspace from './LearningWorkspace'
 import ClassManager from './ClassManager'
-import { readWorkspaceRoute, routeHash } from './workspaceNavigation'
+import { isWorkspaceUrl, readWorkspaceRoute, routeHash } from './workspaceNavigation'
+import { Link } from './website/ui'
+import {
+  navigate as siteNavigate,
+  registerNavigationGuard,
+  replacePosition,
+  useLocation,
+} from './website/navigation'
 import type { NavigationGuard, WorkspaceRoute } from './workspaceNavigation'
 import './workspace.css'
 
@@ -18,7 +25,8 @@ export default function CourseDashboard({
   onExpired: () => void
 }) {
   const teacher = session.user.role === 'teacher'
-  const [route, setRoute] = useState(readWorkspaceRoute)
+  const siteLocation = useLocation()
+  const [route, setRoute] = useState(() => ({ ...readWorkspaceRoute(), actor: session.user.role }))
   const routeRef = useRef(route)
   routeRef.current = route
   const guard = useRef<NavigationGuard | null>(null)
@@ -51,18 +59,36 @@ export default function CourseDashboard({
   const registerGuard = useCallback((value: NavigationGuard | null) => {
     guard.current = value
   }, [])
-  const navigate = useCallback(async (next: WorkspaceRoute, fromPop = false) => {
+  const formState = useRef({ busy, courseDraft, classDraft, view: route.view })
+  formState.current = { busy, courseDraft, classDraft, view: route.view }
+  useEffect(
+    () =>
+      registerNavigationGuard(async (nextUrl) => {
+        const next = isWorkspaceUrl(nextUrl) ? readWorkspaceRoute(nextUrl) : null
+        const local = formState.current
+        if (local.busy) return false
+        const dirty =
+          (local.view === 'new-course' && (local.courseDraft.code || local.courseDraft.title)) ||
+          (local.view === 'new-class' && local.classDraft.code)
+        if (
+          dirty &&
+          (!next || next.view !== local.view) &&
+          !window.confirm('Biểu mẫu có thay đổi chưa lưu. Rời trang và bỏ thay đổi?')
+        )
+          return false
+        return guard.current ? guard.current(next) : true
+      }),
+    [],
+  )
+  const navigate = useCallback(async (next: WorkspaceRoute, saved = false) => {
     if (navigating.current) return false
     navigating.current = true
     try {
-      if (guard.current && !(await guard.current(next))) {
-        if (fromPop) history.pushState(null, '', routeHash(routeRef.current))
+      if (!(await siteNavigate(routeHash({ ...next, actor: session.user.role }), { force: saved })))
         return false
-      }
-      if (!fromPop) history.pushState(null, '', routeHash(next))
       if (next.courseId !== routeRef.current.courseId || next.runId !== routeRef.current.runId)
         setChatSignal(0)
-      setRoute(next)
+      setRoute({ ...next, actor: session.user.role })
       setError('')
       setMessage('')
       window.scrollTo({ top: 0 })
@@ -72,12 +98,8 @@ export default function CourseDashboard({
     }
   }, [])
   useEffect(() => {
-    const pop = () => {
-      void navigate(readWorkspaceRoute(), true)
-    }
-    window.addEventListener('popstate', pop)
-    return () => window.removeEventListener('popstate', pop)
-  }, [navigate])
+    setRoute({ ...readWorkspaceRoute(siteLocation), actor: session.user.role })
+  }, [siteLocation, session.user.role])
   useEffect(() => {
     let stopped = false
     setLoading(true)
@@ -115,6 +137,45 @@ export default function CourseDashboard({
   const courseRuns = runs.filter((value) => value.course_id === route.courseId)
   const run = courseRuns.find((value) => value.id === route.runId)
   useEffect(() => {
+    if (!loading && route.runId && !route.courseId) {
+      const found = runs.find((item) => item.id === route.runId)
+      if (found) replacePosition(routeHash({ ...route, courseId: found.course_id }))
+    }
+  }, [loading, route.runId, route.courseId, runs])
+  useEffect(() => {
+    if (
+      teacher ||
+      !run ||
+      !course ||
+      !['topic', 'pdf', 'quiz', 'progress', 'results'].includes(route.view) ||
+      (['topic', 'quiz'].includes(route.view) && !route.topicId)
+    )
+      return
+    const timer = window.setTimeout(() => {
+      void request('/me/resume', {
+        method: 'PUT',
+        csrfToken: session.csrf_token,
+        body: {
+          run_id: run.id,
+          topic_id: route.topicId || null,
+          document_version_id: route.view === 'pdf' ? route.versionId || null : null,
+          view: route.view,
+          page: route.view === 'pdf' ? route.page || 1 : 1,
+        },
+      }).catch(() => {})
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [
+    teacher,
+    run?.id,
+    course?.id,
+    route.view,
+    route.topicId,
+    route.versionId,
+    route.page,
+    session.csrf_token,
+  ])
+  useEffect(() => {
     if (!route.courseId || (!teacher && !run)) {
       setTopics([])
       return
@@ -147,7 +208,7 @@ export default function CourseDashboard({
     setBusy(true)
     try {
       await request('/auth/logout', { method: 'POST', csrfToken: session.csrf_token })
-      history.replaceState(null, '', location.pathname)
+      replacePosition('/workspace?view=home')
       onLogout()
     } catch (value) {
       fail(value)
@@ -167,7 +228,7 @@ export default function CourseDashboard({
       })
       setCourses((all) => [...all, value])
       setCourseDraft({ code: '', title: '' })
-      await navigate({ view: 'topics', courseId: value.id, runId: '' })
+      await navigate({ view: 'topics', courseId: value.id, runId: '' }, true)
       setReload((v) => v + 1)
     } catch (value) {
       fail(value)
@@ -191,7 +252,7 @@ export default function CourseDashboard({
       })
       setRuns((all) => [...all, value])
       setClassDraft((old) => ({ ...old, code: '' }))
-      await navigate({ ...route, view: 'classes', runId: value.id })
+      await navigate({ ...route, view: 'classes', runId: value.id }, true)
       setMessage('Đã tạo lớp nháp. Thêm sinh viên và mở lớp khi sẵn sàng.')
     } catch (value) {
       fail(value)
@@ -304,6 +365,15 @@ export default function CourseDashboard({
             </p>
           )}
           {loading && <p role="status">Đang tải học phần…</p>}
+          {!loading &&
+            ((route.courseId && !course) ||
+              (route.runId && !runs.some((item) => item.id === route.runId))) && (
+              <section className="workspace-empty" role="alert">
+                <h1>Không tìm thấy không gian học phần</h1>
+                <p>Lớp không tồn tại hoặc tài khoản không còn quyền truy cập.</p>
+                <Link to={teacher ? '/teaching' : '/my-courses'}>Về danh sách của tôi</Link>
+              </section>
+            )}
           {route.view === 'home' && (
             <>
               <div className="section-heading">
@@ -376,7 +446,7 @@ export default function CourseDashboard({
                     Mã học phần
                     <input
                       required
-                      pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
+                      pattern="[A-Za-z0-9]([A-Za-z0-9_]|-)*"
                       maxLength={64}
                       value={courseDraft.code}
                       onChange={(e) => setCourseDraft((old) => ({ ...old, code: e.target.value }))}
@@ -445,6 +515,12 @@ export default function CourseDashboard({
                   </button>
                 ))}
               </nav>
+              {teacher && (
+                <div className="site-actions">
+                  <Link to={`/teaching/courses/${course.id}/overview`}>Giới thiệu công khai</Link>
+                  <Link to="/teaching/classes">Tuyển sinh các lớp</Link>
+                </div>
+              )}
               {((!teacher && courseRuns.length > 1) || (teacher && route.view === 'report')) && (
                 <label className="workspace-class-selector">
                   Lớp học
@@ -496,7 +572,7 @@ export default function CourseDashboard({
                         Mã lớp (ví dụ CNTT01_HK1_2026)
                         <input
                           required
-                          pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
+                          pattern="[A-Za-z0-9]([A-Za-z0-9_]|-)*"
                           value={classDraft.code}
                           onChange={(e) =>
                             setClassDraft((old) => ({ ...old, code: e.target.value }))

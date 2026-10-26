@@ -114,6 +114,27 @@ GitHub Actions có cấu hình test backend với PostgreSQL, build frontend và
 
 ## Không gian học phần
 
+### Website P0 và điều hướng
+
+- Khách: `/`, `/courses`, `/courses/:slug`, `/login`, `/register`, `/help`, `/about`, `/privacy`.
+- Sinh viên: `/dashboard`, `/my-courses`, `/enrollments`, `/profile`, `/settings/security`, `/learn/:runId`.
+- Giảng viên: `/teaching`, `/teaching/courses`, `/teaching/classes`, `/teaching/requests`, `/teaching/courses/:courseId/overview`, `/teaching/runs/:runId/admissions`, `/teaching/workspace/:courseId`.
+- Router History API dùng chung tại `frontend/src/website/navigation.ts`, không thêm dependency. Giữ adapter cho liên kết `#view=...` cũ, Back/Forward, URL sâu và guard khi form/quiz chưa lưu. Nginx và Vite đã có fallback về `index.html`; khi host khác cần cấu hình tương đương cho URL sâu. Không rewrite `/api/` thành HTML.
+- Sau đăng nhập, chỉ trở về URL nội bộ hợp lệ; người dùng phải xác nhận tham gia/gửi yêu cầu. Chờ duyệt không giữ chỗ. Sinh viên không tự kích hoạt lại enrollment bị giảng viên vô hiệu.
+- Đưa học phần hiện có lên danh mục: **Học phần quản lý → Giới thiệu công khai → lưu nháp → xem trước → công bố**. Trong **Lớp học → Tuyển sinh**, chọn hình thức tham gia, giới thiệu lớp và cửa sổ/chỗ trống. Công bố giới thiệu không công khai PDF/quiz hoặc tự mở tuyển sinh.
+- **Tiếp tục học** lưu vị trí điều hướng riêng; tải tổng quan/hồ sơ không tạo log học hay chạy lại mô hình. Tiến độ dựa trên quiz đang công bố; chưa có quiz sẽ hiển thị chưa có dữ liệu.
+- Hồ sơ mặc định riêng tư; chỉ sửa tên hiển thị và giới thiệu. Đổi mật khẩu kiểm tra mật khẩu hiện tại và thu hồi tất cả phiên, cần đăng nhập lại. Chưa có dịch vụ gửi email đặt lại mật khẩu. Giới hạn đổi mật khẩu hiện nằm trong tiến trình backend, phù hợp một instance local; nhiều replica cần bộ đếm dùng chung trước khi vận hành thật.
+
+Kiểm thử website tích hợp (đã cài backend dependencies và `npm.cmd ci` trong frontend, PostgreSQL local đang chạy):
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/test_website.py
+```
+
+Lệnh này chạy cả E2E website và bộ UI hồi quy PDF/quiz/RAG/lộ trình trên cùng phiên bản frontend.
+
+Runner tạo database `_test` riêng, migrate/seed với tài khoản sinh riêng, mở FastAPI/Vite tại cổng loopback tạm rồi chạy Playwright. Không đổi dữ liệu thật; database đạt kiểm thử được xóa, database thất bại giữ lại để chẩn đoán (`--keep-db` giữ cả lần đạt). Log/ảnh ở `.local/website-p0/runs/`; `environment.json` tại đó chứa bí mật kiểm thử, không chia sẻ/commit. Windows mặc định dùng Edge đã cài; môi trường khác cần browser Chromium của Playwright. Các ca lỗi mạng/hết phiên được gây lỗi có chủ đích ở trình duyệt; luồng nghiệp vụ chính dùng API/PostgreSQL thật. Kiểm thử này tắt provider chat để không gửi dữ liệu ra ngoài hoặc tiêu quota Gemini; chất lượng mô hình thật phải nghiệm thu riêng.
+
 ### API website P0
 
 Migration **0009_website_p0** thêm metadata công khai, yêu cầu tham gia lớp, hồ sơ riêng và vị trí tiếp tục học. Mọi học phần cũ mặc định **hidden**; lớp cũ mặc định **invite_only**, `listed=false`. Migration không công bố học phần, không ghi danh thêm và không thay kết quả/log cũ. Nâng cấp bằng `docker compose up -d --build` hoặc `alembic upgrade head` trong backend. Sao lưu database và PDF cùng nhau trước nâng cấp; downgrade xóa dữ liệu mới của P0 nên cần backup khi phục hồi.
@@ -132,11 +153,11 @@ Tất cả endpoint dưới đây dùng prefix `/api/v1` và envelope lỗi/CSRF
 
 - **Sinh viên:** Học phần của tôi → Vào học phần → Vào học một chủ đề. Trong chủ đề, chọn **Đọc tài liệu** hoặc **Làm quiz**; PDF và quiz có trang riêng. **Lộ trình & tiến độ** và **Kết quả** nằm trên thanh điều hướng. Nếu đăng ký nhiều lớp của cùng học phần, chọn lớp trước khi học.
 - **Trợ giảng:** bấm **Hỏi trợ giảng** trong học phần. Đóng/mở khung chat giữ phiên đang chọn; nguồn trích dẫn mở đúng phiên bản PDF và trang. Luồng này dùng API RAG hiện có.
-- **Giảng viên:** Học phần của tôi → **Tạo học phần** hoặc **Quản lý học phần**. Trong **Chủ đề**, thêm/chỉnh tên, mã, mục tiêu, thứ tự và tiên quyết; mỗi chủ đề tập hợp tài liệu và quiz của nó.
+- **Giảng viên:** Học phần quản lý → **Tạo học phần** hoặc **Quản lý học phần**. Trong **Chủ đề**, thêm/chỉnh tên, mã, mục tiêu, thứ tự và tiên quyết; mỗi chủ đề tập hợp tài liệu và quiz của nó.
 - **Tài liệu:** **Thêm tài liệu** mở form upload riêng → lưu nháp → xem PDF/kiểm tra nguồn → công bố. Danh sách chính hiển thị tên, trạng thái và nút công bố/RAG; **Mở tài liệu** xem chi tiết, phiên bản và các trang cần kiểm tra. Có thể chọn chủ đề và khoảng trang khi upload để gắn sau công bố. Nếu tải lại trang trước khi công bố, lựa chọn gắn chưa lưu sẽ mất; dùng **Gắn tài liệu đã công bố** trong chủ đề để gắn lại.
 - **Lớp học:** tạo lớp nháp, thêm tài khoản sinh viên theo email, mở lớp, ngừng/kích hoạt lại đăng ký và xem kết quả lớp. Nội dung thuộc học phần; ngày bắt đầu, đăng ký và kết quả thuộc lớp. Nhãn “lớp học” sử dụng thực thể `CourseRun` hiện có, không thêm actor admin.
 
-URL lưu trang học phần/chủ đề/PDF trong phần `#` để hỗ trợ Back và tải lại trang. Lựa chọn quiz chưa lưu giữ khi chuyển giữa các phần của cùng chủ đề; đổi chủ đề/lớp hoặc đăng xuất yêu cầu xác nhận. Dùng **Lưu bài làm** để lưu lên server trước khi đóng trình duyệt. Log chưa gửi giữ nguyên ID và có nút gửi lại; đổi lớp/đăng xuất phải gửi xong log.
+URL lưu trang học phần/chủ đề/PDF trong pathname và query để hỗ trợ Back và tải lại trang; liên kết hash cũ được chuyển đổi tương thích. Lựa chọn quiz chưa lưu giữ khi chuyển giữa các phần của cùng chủ đề; đổi chủ đề/lớp hoặc đăng xuất yêu cầu xác nhận. Dùng **Lưu bài làm** để lưu lên server trước khi đóng trình duyệt. Log chưa gửi giữ nguyên ID và có nút gửi lại; đổi lớp/đăng xuất phải gửi xong log.
 
 API bổ sung cho không gian giảng viên:
 

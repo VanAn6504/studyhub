@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "test:ui": "node --test tests/pdf-workspace.test.cjs",
+    "test:e2e:website": "node --test tests/website-p0.e2e.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "format": "prettier --write src vite.config.ts *.json index.html"
   },

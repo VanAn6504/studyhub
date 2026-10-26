@@ -87,6 +87,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (response.status === 204) return undefined as T
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/'))
+      window.dispatchEvent(new Event('studyhub:expired'))
     throw new ApiError(
       response.status,
       payload?.error?.code || 'REQUEST_FAILED',
