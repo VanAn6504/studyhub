@@ -20,6 +20,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    bio: Mapped[str] = mapped_column(Text, nullable=False, server_default='')
     role: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -60,6 +61,12 @@ class CourseRun(Base):
     timezone: Mapped[str] = mapped_column(Text, nullable=False, server_default="Asia/Bangkok")
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
     data_origin: Mapped[str] = mapped_column(Text, nullable=False, server_default="real")
+    enrollment_mode: Mapped[str] = mapped_column(Text, nullable=False, server_default='invite_only')
+    listed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
+    opens_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    capacity: Mapped[int | None] = mapped_column(Integer)
+    admissions_revision: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
@@ -109,3 +116,4 @@ class TopicPrerequisite(Base):
 from app import learning_models  # noqa: E402,F401
 from app import guidance_models  # noqa: E402,F401
 from app import rag_models  # noqa: E402,F401
+from app import website_models  # noqa: E402,F401

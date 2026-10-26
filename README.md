@@ -114,6 +114,20 @@ GitHub Actions có cấu hình test backend với PostgreSQL, build frontend và
 
 ## Không gian học phần
 
+### API website P0
+
+Migration **0009_website_p0** thêm metadata công khai, yêu cầu tham gia lớp, hồ sơ riêng và vị trí tiếp tục học. Mọi học phần cũ mặc định **hidden**; lớp cũ mặc định **invite_only**, `listed=false`. Migration không công bố học phần, không ghi danh thêm và không thay kết quả/log cũ. Nâng cấp bằng `docker compose up -d --build` hoặc `alembic upgrade head` trong backend. Sao lưu database và PDF cùng nhau trước nâng cấp; downgrade xóa dữ liệu mới của P0 nên cần backup khi phục hồi.
+
+Tất cả endpoint dưới đây dùng prefix `/api/v1` và envelope lỗi/CSRF hiện có:
+
+- Public: GET `/catalog/categories`, `/catalog/courses`, `/catalog/courses/{slug}`. Catalog chỉ trả metadata whitelist của snapshot đã công bố; không dùng API `/courses` riêng tư. Search `q` hỗ trợ tiếng Việt có/không dấu và tìm literal, `category`, `level`, `availability=all|accepting`, `sort=newest|title|relevance`, `limit`1–24 và `offset`; thứ tự phụ ổn định theo ID.
+- Owner: GET/PATCH `/teaching/courses/{id}/publication`; POST `/teaching/courses/{id}/publish` và `/hide`. Bản nháp tách snapshot đang công bố. Slug ổn định khi đổi tên. Public metadata không mở quyền PDF, quiz, đáp án, chat, dự báo hoặc danh sách học viên.
+- Owner: GET/PATCH `/teaching/runs/{id}/admissions`; cấu hình `enrollment_mode=invite_only|approval|open`, `listed`, `opens_at`, `closes_at`, `capacity`, `expected_revision`. Lớp synthetic không được tuyển sinh/public catalog. Ngày bắt đầu học độc lập cửa sổ nhận đăng ký.
+- Student: POST `/course-runs/{id}/join` cho open, `/enrollment-requests` cho approval; body `expected_revision` từ thông tin lớp. Retry trả cùng enrollment/pending request; inactive không tự kích hoạt. Server khóa Course→Run và kiểm tra chỗ/thời hạn; pending **không giữ chỗ**. Invitation bằng email được giữ, có kiểm tra capacity khi cấp/kích hoạt chỗ.
+- Student: GET `/me/enrollment-requests`, POST `/me/enrollment-requests/{id}/cancel`. Owner: GET `/teaching/runs/{id}/requests`, POST `/teaching/requests/{id}/decision` (`action=approve|reject`, `reason`). Chỉ owner quyết định; retry cùng quyết định không tạo enrollment mới, không ghi đè trạng thái terminal khác.
+- Private: GET/PATCH `/me/profile` chỉ sửa `display_name`, `bio`; email/role chỉ đọc. POST `/me/password` nhận `current_password`, `new_password`, yêu cầu CSRF, giới hạn5 lần/10 phút theo tài khoản, thu hồi mọi phiên và cần đăng nhập lại. Login và đổi mật khẩu khóa cùng user để không cấp phiên bằng mật khẩu cũ sau đổi. Limiter hiện chạy trong một tiến trình local, chưa dùng shared store. Không có email reset giả.
+- Student: GET `/me/overview`, `/me/courses` (q/status/limit/offset), GET/PUT `/me/resume`. Tiến độ từ chủ đề có quiz hiện hành đã đạt; chưa có quiz thì percent=null. Resume chỉ lưu vị trí điều hướng, không tạo LearningEvent/đặc trưng AI; đọc lại kiểm tra quyền và fallback nếu PDF/chủ đề cũ bị thu hồi. Teacher: GET `/teaching/overview` chỉ có dữ liệu thuộc owner.
+
 ### Thao tác trong giao diện học phần
 
 - **Sinh viên:** Học phần của tôi → Vào học phần → Vào học một chủ đề. Trong chủ đề, chọn **Đọc tài liệu** hoặc **Làm quiz**; PDF và quiz có trang riêng. **Lộ trình & tiến độ** và **Kết quả** nằm trên thanh điều hướng. Nếu đăng ký nhiều lớp của cùng học phần, chọn lớp trước khi học.

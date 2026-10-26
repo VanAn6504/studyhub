@@ -168,6 +168,13 @@ def create_enrollment(run_id: UUID, body: EnrollmentInput, response: Response, c
         response.status_code = 200
         return existing
     enrollment = Enrollment(course_run_id=run.id, student_id=student.id, status="active")
+    from app.admissions import assert_capacity
+    from app.website_models import EnrollmentRequest
+    from app.security import utcnow
+    assert_capacity(db, run)
+    pending = db.scalar(select(EnrollmentRequest).where(EnrollmentRequest.run_id == run.id, EnrollmentRequest.student_id == student.id, EnrollmentRequest.status == 'pending'))
+    if pending:
+        pending.status, pending.decided_at, pending.decided_by, pending.reason = 'approved', utcnow(), context.user.id, 'Giảng viên thêm vào lớp bằng email.'
     db.add(enrollment)
     db.commit()
     db.refresh(enrollment)
@@ -195,6 +202,9 @@ def patch_enrollment(enrollment_id: UUID, body: EnrollmentPatch, context: AuthCo
     if run.data_origin != "real":
         raise ApiError(409, "RUN_READ_ONLY", "Không chỉnh lượt học mô phỏng qua API.")
     enrollment = db.scalar(select(Enrollment).where(Enrollment.id == enrollment_id).with_for_update().execution_options(populate_existing=True))
+    if body.status == 'active' and enrollment.status != 'active':
+        from app.admissions import assert_capacity
+        assert_capacity(db, run)
     enrollment.status = body.status
     db.commit()
     return enrollment

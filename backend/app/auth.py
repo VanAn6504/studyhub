@@ -38,7 +38,8 @@ def register(body: RegisterInput, request: Request, db: Session = Depends(get_db
 @router.post("/login", response_model=AuthOutput)
 def login(body: LoginInput, request: Request, response: Response, db: Session = Depends(get_db)):
     public_auth_guard(request, db)
-    user = db.scalar(select(User).where(User.email == str(body.email)))
+    # Serialize session issuance with password changes for this account.
+    user = db.scalar(select(User).where(User.email == str(body.email)).with_for_update().execution_options(populate_existing=True))
     valid_password = verify_password(user.password_hash if user else dummy_password_hash, body.password)
     if not user or not valid_password or not user.is_active:
         raise ApiError(401, "INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng.")
