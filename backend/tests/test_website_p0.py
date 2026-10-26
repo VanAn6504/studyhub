@@ -254,3 +254,105 @@ def test_resume_and_overview_do_not_create_events_and_fallback_after_delete(clie
     resume=client.get(f'{P}/me/resume').json()['resume']
     assert resume['view']=='topic' and resume['document_version_id'] is None and resume['notice']
     assert client.get(f"{P}/course-runs/{run['id']}/events").json()['total']==0
+
+
+@pytest.mark.parametrize('boundary,expected', [('future',409),('expired',409),('closed',409),('unlisted',404),('hidden',404),('invite_only',409)])
+def test_join_rechecks_every_admission_boundary(client,seeded,database,boundary,expected):
+    from app.models import CourseRun
+    from app.security import utcnow
+    from app.website_models import CoursePublication
+    _,run,_,_,_,settings=setup_public(client,seeded)
+    with Session(database) as db:
+        row=db.get(CourseRun,UUID(run['id']))
+        if boundary=='future': row.opens_at=utcnow()+timedelta(days=1)
+        if boundary=='expired': row.closes_at=utcnow()-timedelta(seconds=1)
+        if boundary=='closed': row.status='closed'
+        if boundary=='unlisted': row.listed=False
+        if boundary=='invite_only': row.enrollment_mode='invite_only'
+        if boundary=='hidden': db.get(CoursePublication,UUID(run['course_id'])).status='hidden'
+        db.commit()
+    h,_=newcomer(client,database)
+    assert client.post(f"{P}/course-runs/{run['id']}/join",headers=h,json={'expected_revision':settings['admissions_revision']}).status_code==expected
+    assert client.get(f'{P}/me/courses').json()['total']==0
+
+
+def test_request_ownership_cancel_and_decision_csrf(client,seeded,database):
+    _,run,_,_,_,settings=setup_public(client,seeded,'approval')
+    h,cookies=newcomer(client,database)
+    request=client.post(f"{P}/course-runs/{run['id']}/enrollment-requests",headers=h,json={'expected_revision':settings['admissions_revision']}).json()
+    other,_=newcomer(client,database)
+    assert client.post(f"{P}/me/enrollment-requests/{request['id']}/cancel",headers=other).status_code==404
+    assert client.get(f'{P}/me/enrollment-requests').json()['total']==0
+    with database.begin() as db:
+        db.execute(text("UPDATE users SET role='teacher' WHERE email='student@example.com'"))
+    other_teacher=login(client,seeded,'student')
+    decision=f"{P}/teaching/requests/{request['id']}/decision"
+    assert client.post(decision,headers=other_teacher,json={'action':'approve'}).status_code==404
+    owner=login(client,seeded,'teacher')
+    assert client.post(decision,headers={'Origin':ORIGIN},json={'action':'approve'}).status_code==403
+    assert client.post(decision,headers=owner,json={'action':'reject','reason':'Chưa đáp ứng điều kiện'}).status_code==200
+    client.cookies.clear();client.cookies.update(cookies)
+    assert client.post(f"{P}/me/enrollment-requests/{request['id']}/cancel",headers=h).status_code==409
+
+
+def test_manual_email_and_reactivation_share_capacity_and_request_audit(client,seeded,database):
+    _,run,_,_,_,settings=setup_public(client,seeded,'approval')
+    h,_=newcomer(client,database,'manual.web@example.com')
+    request=client.post(f"{P}/course-runs/{run['id']}/enrollment-requests",headers=h,json={'expected_revision':settings['admissions_revision']}).json()
+    newcomer(client,database,'capacity.web@example.com')
+    owner=login(client,seeded,'teacher')
+    configure(client,owner,run,'approval',capacity=2)
+    url=f"{P}/course-runs/{run['id']}/enrollments"
+    manual=client.post(url,headers=owner,json={'student_email':'manual.web@example.com'})
+    assert manual.status_code==201
+    assert client.get(f"{P}/teaching/runs/{run['id']}/requests?status=approved").json()['items'][0]['id']==request['id']
+    assert client.post(url,headers=owner,json={'student_email':'manual.web@example.com'}).json()['id']==manual.json()['id']
+    assert client.post(url,headers=owner,json={'student_email':'capacity.web@example.com'}).status_code==409
+    assert client.patch(f"{P}/enrollments/{manual.json()['id']}",headers=owner,json={'status':'inactive'}).status_code==200
+    assert client.post(url,headers=owner,json={'student_email':'manual.web@example.com'}).status_code==409
+    assert client.post(url,headers=owner,json={'student_email':'capacity.web@example.com'}).status_code==201
+    assert client.patch(f"{P}/enrollments/{manual.json()['id']}",headers=owner,json={'status':'active'}).status_code==409
+    current=client.get(f"{P}/teaching/runs/{run['id']}/admissions").json()
+    body={k:current[k] for k in ('enrollment_mode','listed','opens_at','closes_at','capacity')}
+    body.update(capacity=1,expected_revision=current['admissions_revision'])
+    assert client.patch(f"{P}/teaching/runs/{run['id']}/admissions",headers=owner,json=body).status_code==409
+
+
+def test_resume_rejects_foreign_topic_and_inactive_membership(client,seeded,database):
+    from app.models import Enrollment
+    owner,run,topics,_=setup_content(client,seeded)
+    foreign=client.post(f'{P}/courses',headers=owner,json={'code':'OTHER_RESUME','title':'Học phần khác'}).json()
+    foreign_topic=client.post(f"{P}/courses/{foreign['id']}/topics",headers=owner,json={'code':'OTHER','title':'Chủ đề khác','order_index':1,'objectives':[]}).json()
+    h=login(client,seeded,'student')
+    body={'run_id':run['id'],'topic_id':foreign_topic['id'],'view':'topic','page':1}
+    assert client.put(f'{P}/me/resume',headers=h,json=body).status_code==422
+    body['topic_id']=topics[0]['id']
+    assert client.put(f'{P}/me/resume',headers=h,json=body).status_code==200
+    with Session(database) as db:
+        row=db.scalar(select(Enrollment).where(Enrollment.course_run_id==UUID(run['id'])))
+        row.status='inactive';db.commit()
+    assert client.put(f'{P}/me/resume',headers=h,json=body).status_code==404
+    assert client.get(f'{P}/me/resume').json()['resume'] is None
+    assert client.get(f"{P}/me/resume?run_id={run['id']}").status_code==404
+
+
+def test_overview_progress_uses_current_published_quiz_without_path_writes(client,seeded,database):
+    owner,run,topics,doc=setup_content(client,seeded)
+    quiz=make_quiz(client,owner,topics[0],doc['versions'][0]['id'])
+    h=login(client,seeded,'student')
+    attempt=begin(client,h,run,topics[0],quiz).json()
+    url=f"{P}/attempts/{attempt['id']}"
+    answers=[{'quiz_version_item_id':item['quiz_version_item_id'],'selected_option':'B'} for item in attempt['items']]
+    assert client.put(url+'/answers',headers=h,json={'expected_revision':0,'answers':answers}).status_code==200
+    assert client.post(url+'/submit',headers=h,json={'expected_revision':1}).status_code==200
+    with database.connect() as db:
+        counts_before={table:db.execute(text('SELECT count(*) FROM '+table)).scalar() for table in ('learning_events','learning_paths')}
+    progress=client.get(f'{P}/me/overview').json()['courses'][0]['progress']
+    assert progress=={'mastered':1,'available':1,'percent':100.0}
+    owner=login(client,seeded,'teacher')
+    make_quiz(client,owner,topics[0],doc['versions'][0]['id'])
+    login(client,seeded,'student')
+    progress=client.get(f'{P}/me/overview').json()['courses'][0]['progress']
+    assert progress=={'mastered':0,'available':1,'percent':0.0}
+    with database.connect() as db:
+        assert all(db.execute(text('SELECT count(*) FROM '+table)).scalar()==count for table,count in counts_before.items())
