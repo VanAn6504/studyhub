@@ -3,6 +3,7 @@ import hashlib
 import re
 from pathlib import Path
 from uuid import UUID, uuid4
+from app.security import utcnow
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -20,7 +21,7 @@ from app.learning_schemas import DocumentPatch, MaterialsInput
 from app.models import Topic
 from app.schemas import Code, Title
 from app.security import AuthContext, get_auth, require_teacher
-from app.rag_models import DocumentChunk, RagPreparation
+from app.rag_models import DocumentChunk, RagPreparation, RagPageCheckpoint
 from app.pdf_cleanup import cleanup_pdf_files
 from app.pdf_limits import MAX_PDF_BYTES, MAX_PDF_PAGES, IO_BLOCK_BYTES
 
@@ -141,6 +142,13 @@ def patch_document(document_id: UUID, body: DocumentPatch, context: AuthContext 
     if any(getattr(document, field) != value for field, value in values.items()):
         for field, value in values.items():
             setattr(document, field, value)
+        if body.status and body.status!='published':
+            for version in db.scalars(select(DocumentVersion).where(DocumentVersion.document_id==document.id)):
+                state=db.get(RagPreparation,version.id)
+                if state is None:
+                    state=RagPreparation(document_version_id=version.id);db.add(state)
+                state.enabled,state.status,state.lease_id=False,'cancelled',None
+                state.generation_id=uuid4();state.error_code='RAG_SOURCE_UNPUBLISHED'
         course.content_revision += 1
         db.commit()
     return document_output(db, document)
@@ -174,6 +182,7 @@ def remove_pdf_versions(db, versions):
     ids = [version.id for version in versions]
     db.execute(delete(TopicMaterial).where(TopicMaterial.document_version_id.in_(ids)))
     db.execute(delete(DocumentChunk).where(DocumentChunk.document_version_id.in_(ids)))
+    db.execute(delete(RagPageCheckpoint).where(RagPageCheckpoint.document_version_id.in_(ids)))
     db.execute(delete(RagPreparation).where(RagPreparation.document_version_id.in_(ids)))
     for version in versions:
         if db.get(PdfFileDeletion, version.storage_key) is None:
@@ -185,8 +194,11 @@ def remove_pdf_versions(db, versions):
 @router.put('/documents/{document_id}/file')
 def replace_document_file(document_id: UUID, tasks: BackgroundTasks, file: UploadFile,
                           code: str = Form(...), title: str = Form(...),
+                          document_type: str | None = Form(None),show_in_learning:bool | None=Form(None),
                           context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     document, course = owned_document(db, document_id, context.user.id)
+    if document_type is not None and document_type not in ('lecture','textbook','supplement'):
+        raise ApiError(422,'DOCUMENT_TYPE_INVALID','Loại tài liệu không hợp lệ.')
     try:
         code, title = TypeAdapter(Code).validate_python(code), TypeAdapter(Title).validate_python(title)
     except ValueError:
@@ -199,6 +211,8 @@ def replace_document_file(document_id: UUID, tasks: BackgroundTasks, file: Uploa
     try:
         remove_pdf_versions(db, old)
         document.code, document.title, document.status = code, title, 'draft'
+        if document_type is not None:document.document_type=document_type
+        if show_in_learning is not None:document.show_in_learning=show_in_learning
         course.content_revision += 1
         db.commit()
     except Exception:
@@ -212,7 +226,7 @@ def replace_document_file(document_id: UUID, tasks: BackgroundTasks, file: Uploa
 def documents_page(db, course_id, published, limit, offset):
     query = select(Document).where(Document.course_id == course_id, Document.deleted_at.is_(None))
     if published:
-        query = query.where(Document.status == 'published')
+        query = query.where(Document.status == 'published',Document.show_in_learning.is_(True))
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     documents = db.scalars(query.order_by(Document.created_at, Document.id).limit(limit).offset(offset)).all()
     return {'items': [document_output(db, d) for d in documents], 'total': total, 'limit': limit, 'offset': offset}
@@ -266,3 +280,10 @@ def pdf_content(run_id: UUID, version_id: UUID, request: Request, context: AuthC
     # Starlette checks Range/If-Range and streams private content after authorization.
     return FileResponse(path, media_type='application/pdf', filename=version.original_filename,
                         content_disposition_type='inline', headers={'Cache-Control': 'no-store', 'Content-Security-Policy': "sandbox"})
+
+
+@router.get('/course-runs/{run_id}/document-versions/{version_id}')
+def pdf_metadata(run_id:UUID,version_id:UUID,context:AuthContext=Depends(get_auth),db:Session=Depends(get_db)):
+    run=accessible_run(db,run_id,context)
+    _,document=version_access(db,version_id,run.course_id,published=context.user.role=='student')
+    return document_output(db,document)

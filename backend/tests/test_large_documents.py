@@ -56,6 +56,23 @@ def test_2000_pdf_pages_and_source_mapping_boundaries(client,seeded):
     assert client.post(f"{P}/topics/{topic['id']}/questions",headers=h,json=question).status_code==422
 
 
+def test_oversized_version_and_replacement_preserve_existing_pdf(client,seeded):
+    from app.config import get_settings
+    h=login(client,seeded,'teacher');course=client.get(f'{P}/courses').json()['items'][0]
+    created=client.post(f"{P}/courses/{course['id']}/documents",headers=h,data={'code':'KEEP','title':'Keep original'},files={'file':('original.pdf',pdf_bytes(),'application/pdf')})
+    assert created.status_code==201
+    original=created.json();version=original['versions'][0]['id']
+    storage=get_settings().pdf_storage_path
+    before={p.name:p.read_bytes() for p in storage.iterdir()}
+    oversized=b'%PDF-'+b' '*(100*1024*1024)
+    for method,suffix in (('POST','versions'),('PUT','file')):
+        response=client.request(method,f"{P}/documents/{original['id']}/{suffix}",headers=h,data={'code':'CHANGED','title':'Changed'},files={'file':('oversized.pdf',oversized,'application/pdf')})
+        assert response.status_code==413,response.text
+        assert client.get(f"{P}/courses/{course['id']}/documents").json()['items'][0]==original
+        assert {p.name:p.read_bytes() for p in storage.iterdir()}==before
+        assert client.get(f'{P}/document-versions/{version}/content').status_code==200
+
+
 def test_streamed_request_lies_do_not_bypass_actual_byte_limit():
     from app.upload_limit import RequestBodyLimit
     async def scenario(length):
@@ -79,6 +96,7 @@ def test_migration_roundtrip_preserves_old_rows_and_blocks_lossy_downgrade(clien
         with database.connect() as db:
             return {t:db.execute(text('SELECT to_jsonb(r)'+(" - 'document_type' - 'show_in_learning'" if t=='documents' else '')+' FROM '+t+' r ORDER BY id')).scalars().all() for t in tables}
     before=snapshot()
+    with database.connect() as db:head=db.scalar(text('SELECT version_num FROM alembic_version'))
     def migrate(*args):
         env=os.environ.copy();env['DATABASE_URL']=env['TEST_DATABASE_URL']
         return subprocess.run([sys.executable,'-m','alembic',*args],cwd=Path(__file__).resolve().parents[1],env=env,capture_output=True,text=True,encoding='utf-8')
@@ -92,6 +110,6 @@ def test_migration_roundtrip_preserves_old_rows_and_blocks_lossy_downgrade(clien
         assert down.returncode!=0 and 'Downgrade blocked' in down.stderr
         with database.connect() as db:
             assert db.scalar(text('SELECT page_count FROM document_versions WHERE document_id=:id'),{'id':doc['id']})==2000
-            assert db.scalar(text('SELECT version_num FROM alembic_version'))=='0010_large_pdf'
+            assert db.scalar(text('SELECT version_num FROM alembic_version'))==head
     finally:
         up=migrate('upgrade','head');assert up.returncode==0,up.stderr

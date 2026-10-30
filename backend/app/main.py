@@ -19,7 +19,12 @@ VERSION = "0.5.0"
 async def lifespan(application):
     from app.pdf_cleanup import cleanup_pdf_files
     cleanup_pdf_files()
-    yield
+    from app.rag_worker import RagWorker
+    worker=RagWorker().start() if get_settings().rag_worker_enabled else None
+    try:
+        yield
+    finally:
+        if worker:worker.close()
 
 
 def create_app() -> FastAPI:

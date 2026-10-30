@@ -39,7 +39,7 @@ class DocumentChunk(Base):
 
 class RagPreparation(Base):
     __tablename__ = 'rag_preparations'
-    __table_args__ = (CheckConstraint("status IN ('unprepared','processing','ready','needs_review','failed')"),)
+    __table_args__ = (CheckConstraint("status IN ('unprepared','queued','processing','ready','needs_review','failed','cancelled')",name='ck_rag_job_status'),)
     document_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('document_versions.id'), primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default='unprepared')
@@ -48,6 +48,24 @@ class RagPreparation(Base):
     generation_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(Text)
+    scope_ranges: Mapped[list] = mapped_column(JSONB,nullable=False,default=list,server_default='[]')
+    stage: Mapped[str] = mapped_column(Text,nullable=False,default='idle',server_default='idle')
+    lease_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer,nullable=False,default=0,server_default='0')
+    embedded_chunks: Mapped[int] = mapped_column(Integer,nullable=False,default=0,server_default='0')
+    embedding_code: Mapped[str | None] = mapped_column(Text)
+
+
+class RagPageCheckpoint(Base):
+    __tablename__='rag_page_checkpoints'
+    __table_args__=(CheckConstraint('pdf_page BETWEEN 1 AND 2000',name='ck_rag_checkpoint_page'),)
+    document_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('document_versions.id'),primary_key=True)
+    pdf_page: Mapped[int] = mapped_column(Integer,primary_key=True)
+    extracted: Mapped[bool] = mapped_column(Boolean,nullable=False,default=True,server_default='true')
+    chunked: Mapped[bool] = mapped_column(Boolean,nullable=False,default=True,server_default='true')
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),server_default=func.now())
 
 
 class ChatSession(Base):
@@ -67,6 +85,7 @@ class ChatTurn(Base):
     chat_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('chat_sessions.id'), nullable=False, index=True)
     request_key: Mapped[uuid.UUID] = mapped_column(UUID, nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('topics.id',ondelete='SET NULL'))
     answer: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)

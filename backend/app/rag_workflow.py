@@ -6,17 +6,18 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.courses import Limit, Offset, owner_course
 from app.db import get_db, get_engine
 from app.errors import ApiError
-from app.models import User
+from app.models import Topic, User
 from app.rag import corpus_query, extract_corpus, index_corpus, owned_version
-from app.rag_models import DocumentChunk, RagPreparation
-from app.rag_policy import automatic_candidate, eligible, issues
-from app.rag_schemas import PageReviewInput
+from app.rag_models import DocumentChunk, RagPreparation, RagPageCheckpoint
+from app.rag_policy import automatic_candidate, eligible, eligible_clause, issues
+from app.rag_schemas import PageReviewInput, RagScopeInput
+from app.rag_scope import selected_pages
 from app.security import AuthContext, require_teacher, utcnow
 
 router = APIRouter(tags=['rag'])
@@ -27,9 +28,11 @@ def page_revision(chunks):
     return hashlib.sha256('|'.join(f'{c.id}:{c.revision}' for c in sorted(chunks, key=lambda c: c.chunk_index)).encode()).hexdigest()
 
 
-def pages(db, version_id):
+def pages(db, version_id, numbers=None):
     groups = defaultdict(list)
-    for chunk in db.scalars(corpus_query(version_id).order_by(DocumentChunk.pdf_page, DocumentChunk.chunk_index)):
+    query=corpus_query(version_id)
+    if numbers is not None:query=query.where(DocumentChunk.pdf_page.in_(numbers))
+    for chunk in db.scalars(query.order_by(DocumentChunk.pdf_page, DocumentChunk.chunk_index)):
         groups[chunk.pdf_page].append(chunk)
     result = []
     for number, chunks in groups.items():
@@ -46,19 +49,36 @@ def pages(db, version_id):
 
 def state_output(db, version, document):
     preparation = db.get(RagPreparation, version.id)
-    page_list = pages(db, version.id)
+    wanted=selected_pages(preparation.scope_ranges if preparation else [],version.page_count)
+    summaries=db.execute(select(DocumentChunk.pdf_page,
+        func.count().filter(eligible_clause()),
+        func.bool_or(and_(DocumentChunk.review_status=='pending',DocumentChunk.auto_eligible.is_(False))),
+        func.bool_or(and_(eligible_clause(),DocumentChunk.review_status=='reviewed')),
+        func.count().filter(and_(eligible_clause(),DocumentChunk.embedding.is_not(None),
+            DocumentChunk.embedding_code==preparation.embedding_code if preparation and preparation.embedding_code else True)))
+        .where(DocumentChunk.document_version_id==version.id,DocumentChunk.pdf_page.in_(wanted)).group_by(DocumentChunk.pdf_page)).all()
+    page_list=[dict(usable_segments=usable,state='needs_review' if unresolved else 'checked' if checked else 'automatic' if usable else 'excluded',indexed=indexed) for _,usable,unresolved,checked,indexed in summaries]
     legacy = preparation is None and any(p['usable_segments'] for p in page_list)
     status = preparation.status if preparation else 'unprepared'
     error = preparation.error_code if preparation else None
     enabled = preparation.enabled if preparation else legacy
-    if preparation and status == 'processing' and preparation.started_at < utcnow() - LEASE:
+    if preparation and status == 'processing' and (preparation.heartbeat_at or preparation.started_at or utcnow()) < utcnow() - LEASE:
         status, error = 'failed', 'RAG_PROCESS_INTERRUPTED'
     if not enabled and preparation:
         status = 'disabled'
+    checkpoints=db.execute(select(func.count().filter(RagPageCheckpoint.extracted.is_(True)),func.count().filter(RagPageCheckpoint.chunked.is_(True)))
+        .where(RagPageCheckpoint.document_version_id==version.id,RagPageCheckpoint.pdf_page.in_(wanted))).one()
+    eligible_chunks=sum(p['usable_segments'] for p in page_list)
     return {'document_version_id': version.id, 'enabled': enabled, 'legacy': legacy,
+        'generation_id':preparation.generation_id if preparation else None,
+        'scope_ranges':preparation.scope_ranges if preparation else [],
+        'job_status':preparation.status if preparation else 'unprepared',
+        'progress':dict(stage=preparation.stage if preparation else 'idle',extracted_pages=checkpoints[0],chunked_pages=checkpoints[1],
+            selected_pages=len(wanted),eligible_chunks=eligible_chunks,embedded_chunks=sum(p['indexed'] for p in page_list),
+            attempts=preparation.attempts if preparation else 0),
         'status': status, 'error_code': error, 'document_status': document.status,
         'counts': {name: sum(p['state'] == name for p in page_list) for name in ('automatic', 'checked', 'needs_review', 'excluded')},
-        'usable_pages': sum(p['usable_segments'] > 0 for p in page_list), 'total_pages': version.page_count}
+        'usable_pages': sum(p['indexed'] > 0 for p in page_list), 'total_pages': version.page_count}
 
 
 @router.get('/document-versions/{version_id}/rag')
@@ -68,52 +88,19 @@ def rag_state(version_id: UUID, context: AuthContext = Depends(require_teacher),
 
 
 def processing(state):
-    return state.status == 'processing' and state.started_at > utcnow() - LEASE
+    return state.status == 'queued' or (state.status == 'processing' and (state.heartbeat_at or state.started_at or utcnow()) > utcnow() - LEASE)
 
 
 def begin(state):
-    state.status, state.error_code = 'processing', None
+    state.status, state.error_code = 'queued', None
+    state.stage, state.lease_id, state.queued_at = 'idle', None, utcnow()
     state.generation_id, state.started_at = uuid4(), utcnow()
 
 
-def prepare(version_id, generation_id, teacher_id):
-    """Saved generation prevents a disabled/retried job from restoring source access."""
-    context = SimpleNamespace(user=SimpleNamespace(id=teacher_id))
-    try:
-        with Session(get_engine(), expire_on_commit=False) as db:
-            version, _ = owned_version(db, version_id, context, lock=True)
-            state = db.get(RagPreparation, version_id)
-            teacher = db.get(User, teacher_id)
-            if not state or not state.enabled or state.generation_id != generation_id:
-                return
-            if not teacher or teacher.role != 'teacher' or not teacher.is_active:
-                raise ApiError(403, 'RAG_OWNER_UNAVAILABLE', 'Giảng viên không còn quyền xử lý nguồn.')
-            extract_corpus(version_id, context, db)
-            owned_version(db, version_id, context, lock=True)
-            state = db.get(RagPreparation, version_id, populate_existing=True)
-            if not state.enabled or state.generation_id != generation_id:
-                return
-            for chunk in db.scalars(corpus_query(version.id)):
-                if chunk.review_status == 'pending':
-                    candidate = automatic_candidate(chunk)
-                    if chunk.auto_eligible != candidate:
-                        chunk.auto_eligible = candidate
-                        chunk.revision += 1
-            db.commit()
-            index_corpus(version_id, context, db)
-            owned_version(db, version_id, context, lock=True)
-            state = db.get(RagPreparation, version_id, populate_existing=True)
-            if state.enabled and state.generation_id == generation_id:
-                state.status = 'needs_review' if any(p['state'] == 'needs_review' for p in pages(db, version_id)) else 'ready'
-                db.commit()
-    except Exception as error:
-        # Never persist exception text: it may include connection/provider details.
-        with Session(get_engine()) as db:
-            state = db.scalar(select(RagPreparation).where(RagPreparation.document_version_id == version_id).with_for_update())
-            if state and state.enabled and state.generation_id == generation_id:
-                state.status = 'failed'
-                state.error_code = error.code if isinstance(error, ApiError) else 'RAG_PREPARATION_FAILED'
-                db.commit()
+def prepare(version_id, generation_id, teacher_id=None):
+    """Explicit worker entry point for diagnostics/tests; requests only enqueue."""
+    from app.rag_worker import run_once
+    return run_once(version_id,generation_id)
 
 
 @router.post('/document-versions/{version_id}/rag/enable', status_code=202)
@@ -134,11 +121,11 @@ def enable_rag(version_id: UUID, tasks: BackgroundTasks, context: AuthContext = 
         course.content_revision += 1
     begin(state)
     db.commit()
-    tasks.add_task(prepare, version.id, state.generation_id, context.user.id)
     return state_output(db, version, document)
 
 
 @router.post('/document-versions/{version_id}/rag/disable')
+@router.post('/document-versions/{version_id}/rag/cancel')
 def disable_rag(version_id: UUID, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     version, document = owned_version(db, version_id, context, lock=True)
     state = db.get(RagPreparation, version.id)
@@ -146,6 +133,7 @@ def disable_rag(version_id: UUID, context: AuthContext = Depends(require_teacher
         state = RagPreparation(document_version_id=version.id, status='unprepared')
         db.add(state)
     state.enabled, state.generation_id = False, uuid4()
+    state.status,state.stage,state.lease_id='cancelled','idle',None
     db.commit()
     return state_output(db, version, document)
 
@@ -154,10 +142,46 @@ def disable_rag(version_id: UUID, context: AuthContext = Depends(require_teacher
 def list_pages(version_id: UUID, needs_review_only: bool = False, limit: Limit = 20, offset: Offset = 0,
                context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     owned_version(db, version_id, context)
-    items = pages(db, version_id)
+    # Page summaries first; load text only for this response's bounded page window.
+    query=select(DocumentChunk.pdf_page).where(DocumentChunk.document_version_id==version_id).group_by(DocumentChunk.pdf_page)
     if needs_review_only:
-        items = [p for p in items if p['state'] == 'needs_review']
-    return {'items': items[offset:offset + limit], 'total': len(items), 'limit': limit, 'offset': offset}
+        query=query.having(func.bool_or(and_(DocumentChunk.review_status=='pending',DocumentChunk.auto_eligible.is_(False))))
+    total=db.scalar(select(func.count()).select_from(query.subquery()))
+    numbers=list(db.scalars(query.order_by(DocumentChunk.pdf_page).limit(limit).offset(offset)))
+    items=pages(db,version_id,numbers)
+    return {'items': items, 'total': total, 'limit': limit, 'offset': offset}
+
+
+@router.put('/document-versions/{version_id}/rag/scope')
+def save_scope(version_id: UUID,body: RagScopeInput,context: AuthContext=Depends(require_teacher),db:Session=Depends(get_db)):
+    version,document=owned_version(db,version_id,context,lock=True)
+    state=db.get(RagPreparation,version_id)
+    if state and body.expected_generation!=state.generation_id:
+        raise ApiError(409,'RAG_SCOPE_CHANGED','Nguồn đã thay đổi ở tab khác. Tải lại trước khi lưu.')
+    for row in body.ranges:
+        if row.page_end>version.page_count:raise ApiError(422,'PDF_PAGE_INVALID','Khoảng trang vượt PDF.')
+        if row.topic_id:
+            topic=db.get(Topic,row.topic_id)
+            if not topic or topic.course_id!=document.course_id:raise ApiError(422,'RAG_TOPIC_INVALID','Chủ đề không thuộc học phần này.')
+    if not state:
+        state=RagPreparation(document_version_id=version_id,status='unprepared',enabled=False);db.add(state)
+    ranges=[row.model_dump(mode='json') for row in body.ranges]
+    if state.scope_ranges!=ranges:
+        state.scope_ranges=ranges
+        state.generation_id=uuid4()
+        if state.enabled:begin(state)
+    db.commit()
+    return state_output(db,version,document)
+
+
+@router.post('/document-versions/{version_id}/rag/retry',status_code=202)
+def retry(version_id:UUID,context:AuthContext=Depends(require_teacher),db:Session=Depends(get_db)):
+    version,document=owned_version(db,version_id,context,lock=True)
+    state=db.get(RagPreparation,version_id)
+    if not state or not state.enabled or document.status!='published':
+        raise ApiError(409,'RAG_NOT_ENABLED','Công bố và cho phép nguồn trước khi thử lại.')
+    if not processing(state):begin(state);db.commit()
+    return state_output(db,version,document)
 
 
 @router.patch('/document-versions/{version_id}/rag/pages/{pdf_page}')
@@ -197,6 +221,4 @@ def review_page(version_id: UUID, pdf_page: int, body: PageReviewInput, tasks: B
     if state and state.enabled:
         begin(state)
     db.commit()
-    if state and state.enabled:
-        tasks.add_task(prepare, version.id, state.generation_id, context.user.id)
     return state_output(db, version, document)

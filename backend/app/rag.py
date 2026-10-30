@@ -15,16 +15,18 @@ from app.config import get_settings
 from app.courses import Limit, Offset, owner_course
 from app.db import get_db
 from app.errors import ApiError
-from app.learning_models import Document, DocumentVersion
-from app.models import Enrollment
+from app.learning_models import Document, DocumentVersion, TopicMaterial
+from app.models import Enrollment, Topic
 from app.quizzes import student_enrollment
-from app.rag_models import ChatSession, ChatTurn, DocumentChunk, RagPreparation
+from app.rag_models import ChatSession, ChatTurn, DocumentChunk, RagPreparation, RagPageCheckpoint
 from app.rag_policy import eligible, eligible_clause
 from app.rag_retrieval import normalize, retrieve_hybrid
 from app.local_embeddings import get_encoder, unavailable as embedding_unavailable
 from app.rag_schemas import ManualChunkInput, MessageInput, ReviewInput
 from app.resources import not_found
 from app.security import AuthContext, get_auth, require_teacher, utcnow
+from app.rag_scope import page_selected
+from app.rag_worker import file_hash
 
 router = APIRouter(tags=['rag'])
 INSUFFICIENT = 'Chưa có nguồn đủ chứng cứ cho câu hỏi này. Hãy đọc PDF hoặc nhờ giảng viên kiểm tra trang liên quan.'
@@ -84,6 +86,8 @@ def teacher_pdf(version_id: UUID, context: AuthContext = Depends(require_teacher
 @router.post('/document-versions/{version_id}/corpus')
 def extract_corpus(version_id: UUID, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     version, _ = owned_version(db, version_id, context, lock=True)
+    if version.page_count>32 or version.byte_size>20*1024*1024:
+        raise ApiError(409,'RAG_BACKGROUND_REQUIRED','Tài liệu lớn cần dùng chức năng chuẩn bị nguồn nền, không trích toàn bộ trong request.')
     # An extracted version is never reindexed or overwritten. New PDF => new corpus.
     if db.scalar(select(DocumentChunk.id).where(DocumentChunk.document_version_id == version.id).limit(1)):
         return {'created': 0, 'status': 'already_extracted'}
@@ -91,7 +95,7 @@ def extract_corpus(version_id: UUID, context: AuthContext = Depends(require_teac
     if not path.is_file():
         raise ApiError(503, 'PDF_UNAVAILABLE', 'Tệp PDF chưa sẵn sàng.')
     try:
-        if hashlib.sha256(path.read_bytes()).hexdigest() != version.sha256:
+        if file_hash(path) != version.sha256:
             raise ValueError('Hash mismatch')
         reader = PdfReader(path, strict=True)
         if len(reader.pages) != version.page_count:
@@ -128,6 +132,8 @@ def extract_corpus(version_id: UUID, context: AuthContext = Depends(require_teac
     except Exception:
         raise ApiError(422, 'CORPUS_UNREADABLE', 'Không thể trích PDF hoặc nội dung vượt giới hạn. Chưa ghi corpus.') from None
     db.add_all(chunks)
+    db.add_all([RagPageCheckpoint(document_version_id=version.id,pdf_page=number) for number in range(1,version.page_count+1)
+        if db.get(RagPageCheckpoint,(version.id,number)) is None])
     db.commit()
     return {'created': len(chunks), 'status': 'pending_review'}
 
@@ -187,6 +193,12 @@ def review_chunk(chunk_id: UUID, body: ReviewInput, context: AuthContext = Depen
 @router.post('/document-versions/{version_id}/embedding-index')
 def index_corpus(version_id: UUID, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     version, _ = owned_version(db, version_id, context)
+    if version.page_count>32 or version.byte_size>20*1024*1024:
+        raise ApiError(409,'RAG_BACKGROUND_REQUIRED','Tài liệu lớn cần dùng chức năng chuẩn bị nguồn nền.')
+    previous=db.get(RagPreparation,version.id)
+    generation=previous.generation_id if previous else None
+    if previous and previous.status in ('queued','processing'):
+        raise ApiError(409,'RAG_PROCESSING','Nguồn đã có job nền; không lập chỉ mục trùng trong request.')
     encoder = get_encoder(get_settings())
     chunks = db.scalars(corpus_query(version.id).where(eligible_clause()))
     pending = [(c.id, c.source_hash, c.text) for c in chunks if c.embedding_code != encoder.code or c.embedding is None]
@@ -196,6 +208,9 @@ def index_corpus(version_id: UUID, context: AuthContext = Depends(require_teache
     except Exception:
         raise embedding_unavailable() from None
     owned_version(db, version_id, context, lock=True)
+    current=db.get(RagPreparation,version_id,populate_existing=True)
+    if (current.generation_id if current else None)!=generation:
+        raise ApiError(409,'RAG_SOURCE_CHANGED','Nguồn đã thay đổi trong lúc xử lý. Không ghi kết quả cũ.')
     written = 0
     for (chunk_id, digest, _), vector in zip(pending, vectors):
         chunk = db.get(DocumentChunk, chunk_id, populate_existing=True)
@@ -234,17 +249,25 @@ def list_sessions(run_id: UUID, limit: Limit = 20, offset: Offset = 0,
     return {'items': [{'id': s.id, 'created_at': s.created_at} for s in items], 'total': total, 'limit': limit, 'offset': offset}
 
 
-def current_sources(db, course_id):
-    rows = db.execute(select(DocumentChunk, DocumentVersion, Document).join(DocumentVersion,
+def current_sources(db, course_id,chunk_ids=None):
+    mappings=list(db.execute(select(TopicMaterial.topic_id,TopicMaterial.document_version_id,TopicMaterial.page_start,TopicMaterial.page_end)
+        .join(Topic,Topic.id==TopicMaterial.topic_id).where(Topic.course_id==course_id)))
+    query=(select(DocumentChunk, DocumentVersion, Document,RagPreparation).join(DocumentVersion,
         DocumentVersion.id == DocumentChunk.document_version_id).join(Document, Document.id == DocumentVersion.document_id)
         .outerjoin(RagPreparation, RagPreparation.document_version_id == DocumentVersion.id)
         .where(Document.course_id == course_id, Document.status == 'published', DocumentVersion.status == 'ready',
                eligible_clause(), or_(RagPreparation.document_version_id.is_(None),
                    (RagPreparation.enabled.is_(True) & RagPreparation.status.in_(['ready', 'needs_review'])))))
-    return [dict(id=str(c.id), text=c.text, pdf_page=c.pdf_page, chunk_index=c.chunk_index,
+    if chunk_ids is not None:query=query.where(DocumentChunk.id.in_(chunk_ids))
+    for c,v,d,state in db.execute(query.execution_options(yield_per=128)):
+        if state and not page_selected(state.scope_ranges,c.pdf_page):continue
+        topic_ids={str(m.topic_id) for m in mappings if m.document_version_id==v.id and m.page_start<=c.pdf_page<=m.page_end}
+        if state:topic_ids.update(r['topic_id'] for r in state.scope_ranges if r.get('topic_id') and r['page_start']<=c.pdf_page<=r['page_end'])
+        yield dict(id=str(c.id), text=c.text, pdf_page=c.pdf_page, chunk_index=c.chunk_index,
                  document_version_id=str(v.id), document_code=d.code, title=d.title, version=v.version,
+                 document_type=d.document_type,topic_ids=sorted(topic_ids),
                  source_hash=c.source_hash, flags=c.flags, extraction_method=c.extraction_method,
-                 embedding=c.embedding, embedding_code=c.embedding_code) for c, v, d in rows]
+                 embedding=c.embedding, embedding_code=c.embedding_code)
 
 
 def visible_turn(db, turn, course_id, valid=None):
@@ -252,10 +275,10 @@ def visible_turn(db, turn, course_id, valid=None):
     if citations:
         # Withdrawing a source also withdraws its stored excerpt/answer from history.
         if valid is None:
-            valid = {s['id']: s for s in current_sources(db, course_id)}
+            valid = {s['id']: s for s in current_sources(db, course_id,[UUID(c['chunk_id']) for c in citations])}
         if any(c['chunk_id'] not in valid or valid[c['chunk_id']]['source_hash'] != c['source_hash'] for c in citations):
             answer, status, citations = 'Nguồn đã bị thu hồi. Câu trả lời này tạm ẩn; hãy hỏi lại sau khi nguồn được rà soát.', 'source_unavailable', []
-    return {'id': turn.id, 'request_key': turn.request_key, 'question': turn.question, 'answer': answer,
+    return {'id': turn.id, 'request_key': turn.request_key, 'question': turn.question, 'topic_id':turn.topic_id, 'answer': answer,
             'status': status, 'citations': citations, 'model_code': turn.model_code, 'created_at': turn.created_at}
 
 
@@ -265,8 +288,8 @@ def history(session_id: UUID, limit: Limit = 20, offset: Offset = 0,
     _, run, _ = own_session(db, session_id, context)
     query = select(ChatTurn).where(ChatTurn.chat_session_id == session_id)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
-    items = db.scalars(query.order_by(ChatTurn.created_at, ChatTurn.id).limit(limit).offset(offset))
-    valid = {s['id']: s for s in current_sources(db, run.course_id)}
+    items = list(db.scalars(query.order_by(ChatTurn.created_at, ChatTurn.id).limit(limit).offset(offset)))
+    valid = {s['id']: s for s in current_sources(db, run.course_id,[UUID(c['chunk_id']) for t in items for c in t.citations])}
     return {'items': [visible_turn(db, t, run.course_id, valid) for t in items], 'total': total, 'limit': limit, 'offset': offset}
 
 
@@ -275,11 +298,14 @@ def send_message(session_id: UUID, body: MessageInput, response: Response,
                  context: AuthContext = Depends(get_auth), db: Session = Depends(get_db)):
     session, run, enrollment = own_session(db, session_id, context, writing=True)
     settings = get_settings()
+    if body.topic_id:
+        topic=db.get(Topic,body.topic_id)
+        if not topic or topic.course_id!=run.course_id:raise ApiError(422,'CHAT_TOPIC_INVALID','Chủ đề không thuộc học phần đang học.')
     now = utcnow()
     lease = now - timedelta(seconds=settings.chat_timeout_seconds + 30)
     turn = db.scalar(select(ChatTurn).where(ChatTurn.chat_session_id == session.id, ChatTurn.request_key == body.request_key))
     if turn:
-        if turn.question != body.message:
+        if turn.question != body.message or turn.topic_id!=body.topic_id:
             raise ApiError(409, 'CHAT_REQUEST_CONFLICT', 'ID gửi lại đã dùng cho câu hỏi khác.')
         if turn.status in {'answered', 'insufficient_sources'}:
             return visible_turn(db, turn, run.course_id)
@@ -299,10 +325,11 @@ def send_message(session_id: UUID, body: MessageInput, response: Response,
     if ('dap an' in normalized or 'answer key' in normalized) and any(term in normalized for term in ('quiz', 'kiem tra', 'chua nop', 'bai thi')):
         sources = []
     else:
-        sources = retrieve_hybrid(settings, body.message, current_sources(db, run.course_id))
+        sources = retrieve_hybrid(settings, body.message, current_sources(db, run.course_id),body.topic_id)
     generation_id = uuid4()
     if not turn:
         turn = ChatTurn(chat_session_id=session.id, request_key=body.request_key, question=body.message,
+                        topic_id=body.topic_id,
                         status='pending', citations=[], generation_id=generation_id, started_at=now)
         db.add(turn)
     else:
@@ -339,7 +366,7 @@ def send_message(session_id: UUID, body: MessageInput, response: Response,
     turn = db.get(ChatTurn, turn_id, populate_existing=True)
     if turn.generation_id != generation_id:
         raise ApiError(409, 'CHAT_PENDING', 'Có lượt thử lại mới hơn. Hãy tải lại lịch sử.')
-    valid = {s['id']: s for s in current_sources(db, run.course_id)}
+    valid = {s['id']: s for s in current_sources(db, run.course_id,[UUID(c['chunk_id']) for c in citations])}
     if any(c['chunk_id'] not in valid or c['source_hash'] != valid[c['chunk_id']]['source_hash'] for c in citations):
         citations, answer, status = [], INSUFFICIENT, 'insufficient_sources'
     turn.answer, turn.status, turn.citations = answer, status, citations

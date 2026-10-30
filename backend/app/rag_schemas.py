@@ -38,7 +38,25 @@ class PageReviewInput(Input):
 
 class MessageInput(Input):
     request_key: UUID
+    topic_id: UUID | None = None
     message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
+class RagRange(Input):
+    page_start: Annotated[int, Field(strict=True, ge=1, le=2000)]
+    page_end: Annotated[int, Field(strict=True, ge=1, le=2000)]
+    topic_id: UUID | None = None
+    label: Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)] = ''
+
+    @model_validator(mode='after')
+    def ordered(self):
+        if self.page_end<self.page_start:raise ValueError('Khoảng trang ngược')
+        return self
+
+
+class RagScopeInput(Input):
+    ranges: Annotated[list[RagRange],Field(max_length=100)] = []
+    expected_generation: UUID | None = None
 
 
 class Evidence(Input):

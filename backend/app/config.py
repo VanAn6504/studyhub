@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     chat_timeout_seconds: int = Field(default=45, ge=5, le=55)
     auth_rate_limit: int = Field(default=20, ge=1, le=1000)
     auth_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
+    rag_worker_enabled: bool = True
+    rag_poll_seconds: float = Field(default=1, ge=.1, le=30)
+    rag_page_batch_size: int = Field(default=8, ge=1, le=16)
+    rag_embedding_batch_size: int = Field(default=8, ge=1, le=16)
 
     @field_validator('embedding_model_path')
     @classmethod

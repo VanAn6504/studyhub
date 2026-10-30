@@ -31,6 +31,7 @@ def database():
         ALLOWED_ORIGINS=ORIGIN,
         COOKIE_SECURE="false",
         AUTH_RATE_LIMIT="1000",
+        RAG_WORKER_ENABLED="false",
     )
     print("[database] Applying migrations to dedicated test database.", flush=True)
     result = subprocess.run(
