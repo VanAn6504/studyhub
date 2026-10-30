@@ -28,7 +28,7 @@ export default function DocumentActions({
       let updated: LearningDocument
       if (replaceFile) {
         if (!file) throw new Error('Hãy chọn PDF mới trước khi xóa file cũ.')
-        if (file.size > 20 * 1024 * 1024) throw new Error('PDF tối đa 20 MiB.')
+        if (file.size > 100 * 1024 * 1024) throw new Error('PDF tối đa 100 MiB.')
         const body = new FormData()
         body.append('code', form.code)
         body.append('title', form.title)

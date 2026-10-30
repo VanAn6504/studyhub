@@ -133,7 +133,7 @@ def extract_corpus(version_id: UUID, context: AuthContext = Depends(require_teac
 
 
 @router.get('/document-versions/{version_id}/chunks')
-def list_chunks(version_id: UUID, pdf_page: int | None = Query(default=None, ge=1, le=500),
+def list_chunks(version_id: UUID, pdf_page: int | None = Query(default=None, ge=1, le=2000),
                 limit: Limit = 20, offset: Offset = 0, context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     version, _ = owned_version(db, version_id, context)
     query = corpus_query(version.id)

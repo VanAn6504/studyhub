@@ -349,7 +349,7 @@ export default function TeacherQuizEditor({
                   required
                   type="number"
                   min={1}
-                  max={500}
+                  max={2000}
                   value={form.page}
                   onChange={(event) => setForm({ ...form, page: Number(event.target.value) })}
                 />

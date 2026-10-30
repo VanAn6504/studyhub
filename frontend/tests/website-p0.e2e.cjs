@@ -75,7 +75,7 @@ test('guest search -> registration/login preserves class intent -> approval -> P
   await p.getByRole('button',{name:'Upload tài liệu mới',exact:true}).click()
   await p.getByLabel('Mã tài liệu (ví dụ CH01)',{exact:true}).fill('PDF')
   await p.getByLabel('Tên tài liệu',{exact:true}).fill('Tài liệu kiểm thử học tập')
-  await p.getByLabel('Tệp PDF · tối đa 20 MiB, 500 trang',{exact:true}).setInputFiles({name:'website.pdf',mimeType:'application/pdf',buffer:fixturePdf()})
+  await p.getByLabel('Tệp PDF · tối đa 100 MiB, 2.000 trang',{exact:true}).setInputFiles({name:'website.pdf',mimeType:'application/pdf',buffer:fixturePdf()})
   await p.getByRole('button',{name:'Lưu nháp và xem trước',exact:true}).click()
   await p.getByRole('button',{name:'Chỉ công bố PDF',exact:true}).click()
   await p.getByRole('button',{name:'Lưu trữ PDF',exact:true}).waitFor()

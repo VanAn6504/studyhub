@@ -201,8 +201,8 @@ export default function LearningWorkspace({
   async function uploadPdf(event: FormEvent) {
     event.preventDefault()
     if (!file) return
-    if (file.size > 20 * 1024 * 1024) {
-      fail(new Error('PDF tối đa 20 MiB.'))
+    if (file.size > 100 * 1024 * 1024) {
+      fail(new Error('PDF tối đa 100 MiB.'))
       return
     }
     const body = new FormData()
@@ -238,8 +238,8 @@ export default function LearningWorkspace({
   }
   async function addVersion(document: LearningDocument, file?: File) {
     if (!file) return
-    if (file.size > 20 * 1024 * 1024) {
-      fail(new Error('PDF tối đa 20 MiB.'))
+    if (file.size > 100 * 1024 * 1024) {
+      fail(new Error('PDF tối đa 100 MiB.'))
       return
     }
     const body = new FormData()
@@ -691,7 +691,7 @@ export default function LearningWorkspace({
                             required
                             type="number"
                             min={1}
-                            max={500}
+                            max={2000}
                             value={mapping.start}
                             onChange={(e) =>
                               setMapping((v) => ({ ...v, start: Number(e.target.value) }))
@@ -704,7 +704,7 @@ export default function LearningWorkspace({
                             required
                             type="number"
                             min={mapping.start}
-                            max={500}
+                            max={2000}
                             value={mapping.end}
                             onChange={(e) =>
                               setMapping((v) => ({ ...v, end: Number(e.target.value) }))
@@ -902,7 +902,7 @@ export default function LearningWorkspace({
                 />
               </label>
               <label>
-                Tệp PDF · tối đa 20 MiB, 500 trang
+                Tệp PDF · tối đa 100 MiB, 2.000 trang
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
@@ -931,7 +931,7 @@ export default function LearningWorkspace({
                     <input
                       type="number"
                       min={1}
-                      max={500}
+                      max={2000}
                       value={uploadTarget.start}
                       onChange={(e) =>
                         setUploadTarget((v) => ({ ...v, start: Number(e.target.value) }))
@@ -943,7 +943,7 @@ export default function LearningWorkspace({
                     <input
                       type="number"
                       min={uploadTarget.start}
-                      max={500}
+                      max={2000}
                       value={uploadTarget.end}
                       onChange={(e) => setUploadTarget((v) => ({ ...v, end: e.target.value }))}
                     />

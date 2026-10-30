@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, func, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,11 +11,13 @@ from app.models import Base
 
 class Document(Base):
     __tablename__ = "documents"
-    __table_args__ = (UniqueConstraint("course_id", "code"), CheckConstraint("status IN ('draft','published','archived')"))
+    __table_args__ = (UniqueConstraint("course_id", "code"), CheckConstraint("status IN ('draft','published','archived')"), CheckConstraint("document_type IN ('textbook','lecture','supplement')", name='ck_document_type'))
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     course_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("courses.id"), nullable=False, index=True)
     code: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
+    document_type: Mapped[str] = mapped_column(Text, nullable=False, default='lecture', server_default='lecture')
+    show_in_learning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default='true')
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -23,7 +25,7 @@ class Document(Base):
 
 class DocumentVersion(Base):
     __tablename__ = "document_versions"
-    __table_args__ = (UniqueConstraint("document_id", "version"), CheckConstraint("version >= 1 AND page_count BETWEEN 1 AND 500 AND byte_size BETWEEN 1 AND 20971520"))
+    __table_args__ = (UniqueConstraint("document_id", "version"), CheckConstraint("version >= 1 AND page_count BETWEEN 1 AND 2000 AND byte_size BETWEEN 1 AND 104857600", name='ck_pdf_limits'))
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documents.id", ondelete="SET NULL"))
     version: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -49,7 +49,7 @@ class EnrollmentRequest(Base):
 
 class LearningResume(Base):
     __tablename__ = 'learning_resumes'
-    __table_args__ = (CheckConstraint("view IN ('topic','pdf','quiz','progress','results') AND page>=1 AND page<=500"),)
+    __table_args__ = (CheckConstraint("view IN ('topic','pdf','quiz','progress','results') AND page>=1 AND page<=2000"),)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id'), primary_key=True)
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('course_runs.id'), primary_key=True)
     topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('topics.id', ondelete='SET NULL'))

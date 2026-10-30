@@ -107,7 +107,7 @@ def test_pdf_publication_private_ranges_versions_and_mapping(client, seeded):
 def test_pdf_validation_and_atomic_cleanup(client, seeded):
     headers = login(client, seeded, 'teacher')
     course = client.get(f'{P}/courses').json()['items'][0]
-    for payload, expected in [(b'not pdf', 415), (b'%PDF-broken', 422), (pdf_bytes(encrypted=True), 422), (pdf_bytes(501), 422), (b'%PDF-' + b' ' * (20 * 1024 * 1024), 413)]:
+    for payload, expected in [(b'not pdf', 415), (b'%PDF-broken', 422), (pdf_bytes(encrypted=True), 422), (pdf_bytes(2001), 422), (b'%PDF-' + b' ' * (100 * 1024 * 1024), 413)]:
         response = client.post(f"{P}/courses/{course['id']}/documents", headers=headers, data={'code': 'INVALID', 'title': 'Invalid'}, files={'file': ('bad.pdf', payload, 'application/pdf')})
         assert response.status_code == expected, response.text
     assert client.get(f"{P}/courses/{course['id']}/documents").json()['total'] == 0
@@ -249,6 +249,6 @@ def test_cross_course_documents_materials_sources_and_attempt_ownership(client, 
 
 
 def test_streamed_request_limit_before_multipart_parser(client):
-    data = iter([b'x' * (1024 * 1024)] * 22)
+    data = iter([b'x' * (1024 * 1024)] * 103)
     response = client.post(f'{P}/auth/register', headers={'Origin': ORIGIN, 'Content-Type': 'application/json'}, content=data)
     assert response.status_code == 413

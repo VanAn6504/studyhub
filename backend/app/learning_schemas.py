@@ -6,10 +6,12 @@ from pydantic import Field, StringConstraints, field_validator, model_validator
 from app.schemas import Code, Input, Title
 
 TextBody = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
-PageNumber = Annotated[int, Field(strict=True, ge=1, le=500)]
+PageNumber = Annotated[int, Field(strict=True, ge=1, le=2000)]
 
 
 class DocumentPatch(Input):
+    document_type: Literal['textbook', 'lecture', 'supplement'] | None = None
+    show_in_learning: bool | None = None
     code: Code | None = None
     title: Title | None = None
     status: Literal['draft', 'published', 'archived'] | None = None

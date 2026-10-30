@@ -73,7 +73,7 @@ export function readWorkspaceRoute(value = location.href): WorkspaceRoute {
       params.get('class') || (url.pathname.startsWith('/learn/') ? url.pathname.split('/')[2] : ''),
     topicId: params.get('topic') || undefined,
     versionId: params.get('document') || undefined,
-    page: Math.min(500, Math.max(1, Math.floor(Number(params.get('page')) || 1))),
+    page: Math.min(2000, Math.max(1, Math.floor(Number(params.get('page')) || 1))),
   }
 }
 export function routeHash(route: WorkspaceRoute) {

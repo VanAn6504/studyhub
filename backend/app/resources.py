@@ -1,6 +1,5 @@
 """Private, versioned PDFs. Publication and mappings are explicit teacher actions."""
 import hashlib
-import io
 import re
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -23,9 +22,9 @@ from app.schemas import Code, Title
 from app.security import AuthContext, get_auth, require_teacher
 from app.rag_models import DocumentChunk, RagPreparation
 from app.pdf_cleanup import cleanup_pdf_files
+from app.pdf_limits import MAX_PDF_BYTES, MAX_PDF_PAGES, IO_BLOCK_BYTES
 
 router = APIRouter(tags=['documents'])
-MAX_PDF_BYTES = 20 * 1024 * 1024
 
 
 def not_found():
@@ -53,49 +52,60 @@ def version_output(version):
 
 def document_output(db, document):
     return {'id': document.id, 'code': document.code, 'title': document.title, 'status': document.status,
+            'document_type': document.document_type, 'show_in_learning': document.show_in_learning,
             'versions': [version_output(v) for v in db.scalars(select(DocumentVersion).where(DocumentVersion.document_id == document.id, DocumentVersion.status == 'ready').order_by(DocumentVersion.version.desc()))]}
 
 
 def persist_pdf(db, document, file, commit=True):
-    data = file.file.read(MAX_PDF_BYTES + 1)
-    if len(data) > MAX_PDF_BYTES:
-        raise ApiError(413, 'PDF_TOO_LARGE', 'PDF tối đa 20 MiB.')
-    if not data.startswith(b'%PDF-'):
-        raise ApiError(415, 'PDF_REQUIRED', 'Tệp tải lên phải là PDF.')
-    try:
-        reader = PdfReader(io.BytesIO(data), strict=True)
-        if reader.is_encrypted:
-            raise ValueError('encrypted')
-        pages = len(reader.pages)
-        if not 1 <= pages <= 500:
-            raise ValueError('page limit')
-        # Resolve each page now, before marking the version ready.
-        for page in reader.pages:
-            _ = page.mediabox
-    except Exception:
-        raise ApiError(422, 'PDF_UNREADABLE', 'PDF lỗi, mã hóa hoặc vượt giới hạn 500 trang.')
     number = (db.scalar(select(func.max(DocumentVersion.version)).where(DocumentVersion.document_id == document.id)) or 0) + 1
     storage = get_settings().pdf_storage_path
     storage.mkdir(parents=True, exist_ok=True)
     key = f'{uuid4().hex}.pdf'
     path = storage / key
+    temporary = storage / (key + '.upload')
     original = re.split(r'[/\\]', file.filename or 'document.pdf')[-1]
     original = ''.join(c for c in original if c.isprintable())[:200] or 'document.pdf'
-    version = DocumentVersion(document_id=document.id, version=number, storage_key=key, original_filename=original,
-                              sha256=hashlib.sha256(data).hexdigest(), page_count=pages, byte_size=len(data), status='ready')
     try:
-        with path.open('xb') as target:
-            target.write(data)
+        size, digest = 0, hashlib.sha256()
+        with temporary.open('xb') as target:
+            while block := file.file.read(IO_BLOCK_BYTES):
+                if size == 0 and not block.startswith(b'%PDF-'):
+                    raise ApiError(415, 'PDF_REQUIRED', 'Tệp tải lên phải là PDF.')
+                size += len(block)
+                if size > MAX_PDF_BYTES:
+                    raise ApiError(413, 'PDF_TOO_LARGE', 'PDF tối đa 100 MiB (104857600 byte).')
+                digest.update(block)
+                target.write(block)
+        if not size:
+            raise ApiError(415, 'PDF_REQUIRED', 'Tệp tải lên phải là PDF.')
+        try:
+            with temporary.open('rb') as source:
+                reader = PdfReader(source, strict=True)
+                if reader.is_encrypted:
+                    raise ValueError('encrypted')
+                pages = len(reader.pages)
+                if not 1 <= pages <= MAX_PDF_PAGES:
+                    raise ValueError('page limit')
+                for page in reader.pages:
+                    _ = page.mediabox
+        except Exception:
+            raise ApiError(422, 'PDF_UNREADABLE', 'PDF lỗi, mã hóa hoặc vượt giới hạn 2.000 trang.') from None
+        version = DocumentVersion(document_id=document.id, version=number, storage_key=key, original_filename=original,
+                                  sha256=digest.hexdigest(), page_count=pages, byte_size=size, status='ready')
+        temporary.replace(path)
         db.add(version)
         db.commit() if commit else db.flush()
     except Exception:
         path.unlink(missing_ok=True)
         raise
+    finally:
+        temporary.unlink(missing_ok=True)
     return version
 
 
 @router.post('/courses/{course_id}/documents', status_code=201)
 def upload_document(course_id: UUID, file: UploadFile, code: str = Form(...), title: str = Form(...),
+                    document_type: str = Form('lecture'), show_in_learning: bool = Form(True),
                     context: AuthContext = Depends(require_teacher), db: Session = Depends(get_db)):
     course = owner_course(db, course_id, context.user.id, lock=True)
     try:
@@ -104,7 +114,9 @@ def upload_document(course_id: UUID, file: UploadFile, code: str = Form(...), ti
         raise ApiError(422, 'DOCUMENT_METADATA_INVALID', 'Mã hoặc tên tài liệu không hợp lệ.')
     if db.scalar(select(Document.id).where(Document.course_id == course.id, Document.code == code)):
         raise ApiError(409, 'DOCUMENT_CODE_EXISTS', 'Mã tài liệu đã tồn tại. Hãy dùng mã khác hoặc chỉnh sửa tài liệu.')
-    document = Document(course_id=course.id, code=code, title=title, status='draft')
+    if document_type not in ('textbook', 'lecture', 'supplement'):
+        raise ApiError(422, 'DOCUMENT_TYPE_INVALID', 'Loại tài liệu không hợp lệ.')
+    document = Document(course_id=course.id, code=code, title=title, status='draft', document_type=document_type, show_in_learning=show_in_learning)
     db.add(document)
     db.flush()
     persist_pdf(db, document, file)

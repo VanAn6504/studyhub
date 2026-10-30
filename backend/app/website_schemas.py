@@ -129,7 +129,7 @@ class ResumeInput(Input):
     topic_id: UUID | None = None
     document_version_id: UUID | None = None
     view: Literal['topic', 'pdf', 'quiz', 'progress', 'results'] = 'topic'
-    page: Annotated[int, Field(strict=True, ge=1, le=500)] = 1
+    page: Annotated[int, Field(strict=True, ge=1, le=2000)] = 1
 
 
 class ResumeOutput(BaseModel):

@@ -8,7 +8,7 @@ ChunkText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2
 
 
 class ManualChunkInput(Input):
-    pdf_page: Annotated[int, Field(strict=True, ge=1, le=500)]
+    pdf_page: Annotated[int, Field(strict=True, ge=1, le=2000)]
     text: ChunkText
 
 

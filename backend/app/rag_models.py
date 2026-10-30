@@ -13,7 +13,7 @@ class DocumentChunk(Base):
     __tablename__ = 'document_chunks'
     __table_args__ = (
         UniqueConstraint('document_version_id', 'pdf_page', 'chunk_index'),
-        CheckConstraint('pdf_page BETWEEN 1 AND 500 AND chunk_index >= 0 AND revision >= 1'),
+        CheckConstraint('pdf_page BETWEEN 1 AND 2000 AND chunk_index >= 0 AND revision >= 1'),
         CheckConstraint("review_status IN ('pending','reviewed','rejected')"),
         CheckConstraint("kind IN ('content','cover','toc','image')"),
         CheckConstraint("extraction_method IN ('pypdf','manual')"),

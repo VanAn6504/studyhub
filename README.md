@@ -114,6 +114,12 @@ GitHub Actions có cấu hình test backend với PostgreSQL, build frontend và
 
 ## Không gian học phần
 
+### PDF lớn và loại tài liệu
+
+PDF tối đa **100 MiB =104857600 byte/file**, **2000 trang**. Request multipart tối đa102MiB để dành chỗ cho metadata/boundary; Nginx và middleware đếm byte thực, kể cả không có hoặc khai sai Content-Length. Middleware spool xuống file tạm sau1MiB; lưu PDF/hash theo khối64KiB, kiểm tra PDF/mã hóa/trang trước commit. Không đọc cả100MiB vào RAM để tính hash. Upload mới, thêm phiên bản và thay file dùng cùng kiểm tra; thay file chỉ loại bản cũ sau khi bản mới hợp lệ và commit thành công.
+
+Migration `0010_large_pdf` mở rộng constraint và thêm `document_type=textbook|lecture|supplement`, `show_in_learning`. Tài liệu cũ mặc định `lecture`, không tự bật RAG. Loại tài liệu, công bố, liên kết chủ đề, hiển thị thư viện và opt-in RAG là các thuộc tính riêng. Downgrade chặn nếu có file/trang vượt20MiB/500 trang hoặc thiết lập phân loại/hiển thị sẽ mất; không tự xóa/sửa dữ liệu cho vừa giới hạn cũ. Phục hồi bằng backup DB/PDF tương ứng khi cần.
+
 ### Website P0 và điều hướng
 
 - Khách: `/`, `/courses`, `/courses/:slug`, `/login`, `/register`, `/help`, `/about`, `/privacy`.
