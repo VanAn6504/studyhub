@@ -17,6 +17,7 @@ import RagDocumentPanel from './RagDocumentPanel'
 import ChatPanel from './ChatPanel'
 import TopicEditor from './TopicEditor'
 import DocumentActions from './DocumentActions'
+import DocumentSettings, { defaultDocumentSettings, documentTypeLabels } from './DocumentSettings'
 import type { NavigationGuard, WorkspaceRoute } from './workspaceNavigation'
 import './learning.css'
 import { replacePosition } from './website/navigation'
@@ -50,6 +51,7 @@ export default function LearningWorkspace({
   const teacher = session.user.role === 'teacher'
   const reportVisible = teacher && route.view === 'report'
   const [documents, setDocuments] = useState<LearningDocument[]>([])
+  const [citationDocument, setCitationDocument] = useState<LearningDocument | null>(null)
   const [topicId, setTopicId] = useState(topics[0]?.id || '')
   const topic = route.topicId
     ? topics.find((value) => value.id === route.topicId)
@@ -81,7 +83,7 @@ export default function LearningWorkspace({
   const [reload, setReload] = useState(0)
   const [activityReload, setActivityReload] = useState(0)
   const [file, setFile] = useState<File | null>(null)
-  const [upload, setUpload] = useState({ code: '', title: '' })
+  const [upload, setUpload] = useState({ code: '', title: '', ...defaultDocumentSettings })
   const [mapping, setMapping] = useState({ version: '', start: 1, end: 1 })
   const [pending, setPending] = useState(0)
   const [logError, setLogError] = useState('')
@@ -128,6 +130,28 @@ export default function LearningWorkspace({
       mounted.current = false
     }
   }, [])
+  useEffect(() => {
+    let stopped = false
+    if (
+      !loading &&
+      !teacher &&
+      run &&
+      route.view === 'pdf' &&
+      route.versionId &&
+      !documents.some((d) => d.versions.some((v) => v.id === route.versionId))
+    ) {
+      request<LearningDocument>(`/course-runs/${run.id}/document-versions/${route.versionId}`)
+        .then((value) => {
+          if (!stopped) setCitationDocument(value)
+        })
+        .catch((value) => {
+          if (!stopped) fail(value)
+        })
+    }
+    return () => {
+      stopped = true
+    }
+  }, [loading, teacher, run?.id, route.view, route.versionId, documents, fail])
   useEffect(() => {
     let stopped = false
     setLoading(true)
@@ -209,6 +233,8 @@ export default function LearningWorkspace({
     body.append('file', file)
     body.append('code', upload.code)
     body.append('title', upload.title)
+    body.append('document_type', upload.document_type)
+    body.append('show_in_learning', String(upload.show_in_learning))
     setBusy(true)
     setError('')
     try {
@@ -463,10 +489,14 @@ export default function LearningWorkspace({
   const sourceVersions = documents
     .filter((d) => d.status === 'published')
     .flatMap((document) => document.versions.map((version) => ({ ...version, document })))
-  const versions = documents.flatMap((document) =>
-    document.versions.map((version) => ({ ...version, document })),
-  )
+  const versions = [
+    ...documents,
+    ...(citationDocument && !documents.some((d) => d.id === citationDocument.id)
+      ? [citationDocument]
+      : []),
+  ].flatMap((document) => document.versions.map((version) => ({ ...version, document })))
   const selectedVersion = versions.find((v) => v.id === route.versionId)
+  const chatTopic = ['topic','quiz'].includes(route.view) || (route.view==='pdf'&&['topic','quiz'].includes(viewerReturn.current)) ? topic : undefined
   const heading = (title: string, actions?: ReactNode) => (
     <div className="section-heading">
       <div>
@@ -868,6 +898,8 @@ export default function LearningWorkspace({
             run={run}
             csrfToken={csrfToken}
             onExpired={onExpired}
+            topicId={chatTopic?.id}
+            topicTitle={chatTopic?.title}
             onRead={(citation) => readPdf(citation.document_version_id, citation.pdf_page)}
           />
         </aside>
@@ -909,6 +941,15 @@ export default function LearningWorkspace({
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
               </label>
+              <DocumentSettings
+                value={upload}
+                onChange={(value) => setUpload((v) => ({ ...v, ...value }))}
+              />
+              <p className="muted">
+                Giới hạn100MiB (104857600byte), tối đa2000trang. Upload chỉ lưu và kiểm tra PDF;
+                chuẩn bị nguồn trợ giảng chạy riêng trong nền. Trang sử dụng số trang PDF từ1, có
+                thể khác số in trên sách.
+              </p>
               {file && <p className="muted">Đã chọn: {file.name}</p>}
               <label>
                 Gắn vào chủ đề sau khi công bố
@@ -992,6 +1033,9 @@ export default function LearningWorkspace({
               <div className="section-heading">
                 <div>
                   <h3>{version.document.title}</h3>
+                  <span className="rag-badge">
+                    {documentTypeLabels[version.document.document_type || 'lecture']}
+                  </span>
                   <p className="muted">
                     {version.document.code} · Bản {version.version} · {version.page_count} trang ·{' '}
                     {version.document.status === 'published'
@@ -1099,6 +1143,8 @@ export default function LearningWorkspace({
                 versionId={version.id}
                 documentStatus={version.document.status}
                 csrfToken={csrfToken}
+                topics={topics}
+                pageCount={version.page_count}
                 onExpired={onExpired}
                 compact={!detail}
                 onReview={() => go('document', { versionId: version.id })}
@@ -1107,6 +1153,42 @@ export default function LearningWorkspace({
             </article>
           )
         })}
+      {!teacher && route.view === 'materials' && (
+        <section>
+          {heading('Giáo trình và tài liệu bổ sung')}
+          <p className="muted">
+            Các tài liệu chung của học phần, độc lập với bài giảng gắn theo chủ đề. Một số tài liệu
+            cũng được giảng viên cho phép dùng làm nguồn trợ giảng.
+          </p>
+          {(['textbook', 'supplement', 'lecture'] as const).map((kind) => (
+            <section key={kind}>
+              <h3>{documentTypeLabels[kind]}</h3>
+              {!documents.some((d) => (d.document_type || 'lecture') === kind) ? (
+                <p className="muted">Chưa có tài liệu đã công bố trong nhóm này.</p>
+              ) : (
+                documents
+                  .filter((d) => (d.document_type || 'lecture') === kind)
+                  .map((d) => (
+                    <article className="document-card" key={d.id}>
+                      <h4>{d.title}</h4>
+                      <p>{d.code}</p>
+                      {d.versions.map((v) => (
+                        <div className="workspace-actions" key={v.id}>
+                          <span>
+                            Bản{v.version} ·{v.page_count} trang
+                          </span>
+                          <button className="text-button" onClick={() => readPdf(v.id, 1)}>
+                            Đọc {d.title} · bản {v.version}
+                          </button>
+                        </div>
+                      ))}
+                    </article>
+                  ))
+              )}
+            </section>
+          ))}
+        </section>
+      )}
       {!teacher && run && route.view === 'results' && (
         <section className="learning-history">
           {heading('Kết quả và lịch sử bài làm')}

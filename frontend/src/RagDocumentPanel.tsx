@@ -1,10 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { ApiError, errorMessage, listAll, request } from './api'
+import { ApiError, errorMessage, request } from './api'
+import type { Topic } from './api'
+import RagScopeEditor from './RagScopeEditor'
 import type { RagPage, RagStatus } from './ragTypes'
 const PdfViewer = lazy(() => import('./PdfViewer'))
 
 const stateLabels: Record<RagStatus['status'], string> = {
   unprepared: 'Chưa bật',
+  queued: 'Đang chờ xử lý',
+  cancelled: 'Đã hủy chuẩn bị',
   processing: 'Đang chuẩn bị nguồn',
   ready: 'Sẵn sàng',
   needs_review: 'Có trang cần kiểm tra',
@@ -25,6 +29,8 @@ const issueLabels: Record<string, string> = {
   possible_cover: 'Có thể là trang bìa',
   excluded_kind: 'Loại nội dung không dùng tự động',
   manual_transcription: 'Bản phiên chép cần kiểm tra',
+  page_text_limit:
+    'Trang quá dày chữ để dùng tự động; cần chọn hoặc phiên chép nội dung đã kiểm tra',
 }
 
 export default function RagDocumentPanel({
@@ -35,6 +41,8 @@ export default function RagDocumentPanel({
   onExpired,
   compact = false,
   onReview,
+  topics = [],
+  pageCount = 1,
 }: {
   versionId: string
   documentStatus: string
@@ -43,6 +51,8 @@ export default function RagDocumentPanel({
   onExpired: () => void
   compact?: boolean
   onReview?: () => void
+  topics?: Topic[]
+  pageCount?: number
 }) {
   const [state, setState] = useState<RagStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -53,11 +63,13 @@ export default function RagDocumentPanel({
   const [pages, setPages] = useState<RagPage[]>([])
   const [selected, setSelected] = useState(0)
   const [pagesLoading, setPagesLoading] = useState(false)
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageTotal, setPageTotal] = useState(0)
   const [transcription, setTranscription] = useState('')
   const [preview, setPreview] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const page = pages.find((p) => p.pdf_page === selected)
-  const processing = state?.status === 'processing'
+  const processing = state?.status === 'processing' || state?.status === 'queued'
   const canReview = !!state?.enabled && !state.legacy && !processing && !busy
   const fail = useCallback(
     (value: unknown) => {
@@ -75,7 +87,8 @@ export default function RagDocumentPanel({
         if (!stopped) {
           setState(value)
           setLoading(false)
-          if (value.status === 'processing') timer = setTimeout(load, 2000)
+          if (value.status === 'processing' || value.status === 'queued')
+            timer = setTimeout(load, 2000)
         }
       } catch (value) {
         if (!stopped) {
@@ -94,12 +107,19 @@ export default function RagDocumentPanel({
     let stopped = false
     if (!open || processing) return
     setPagesLoading(true)
-    listAll<RagPage>(`/document-versions/${versionId}/rag/pages?needs_review_only=${filter}`)
+    request<{ items: RagPage[]; total: number }>(
+      `/document-versions/${versionId}/rag/pages?needs_review_only=${filter}&limit=10&offset=${pageIndex * 10}`,
+    )
       .then((value) => {
         if (!stopped) {
-          setPages(value)
+          setPages(value.items)
+          setPageTotal(value.total)
+          if (value.total > 0 && pageIndex * 10 >= value.total) {
+            setPageIndex(Math.max(0, Math.ceil(value.total / 10) - 1))
+            return
+          }
           setSelected((old) =>
-            value.some((p) => p.pdf_page === old) ? old : value[0]?.pdf_page || 0,
+            value.items.some((p) => p.pdf_page === old) ? old : value.items[0]?.pdf_page || 0,
           )
         }
       })
@@ -112,13 +132,13 @@ export default function RagDocumentPanel({
     return () => {
       stopped = true
     }
-  }, [open, filter, versionId, refresh, processing, fail])
+  }, [open, filter, versionId, refresh, processing, fail, pageIndex])
   async function toggle(enable: boolean) {
     setBusy(true)
     setError('')
     try {
       const value = await request<RagStatus>(
-        `/document-versions/${versionId}/rag/${enable ? 'enable' : 'disable'}`,
+        `/document-versions/${versionId}/rag/${enable ? (state?.enabled && state.status === 'failed' ? 'retry' : 'enable') : 'disable'}`,
         { method: 'POST', csrfToken },
       )
       setState(value)
@@ -220,6 +240,41 @@ export default function RagDocumentPanel({
           Hệ thống đang trích văn bản và chuẩn bị tìm kiếm. Bạn có thể tiếp tục quản lý học phần.
         </p>
       )}
+      {state?.progress && (
+        <div className="rag-progress" role="status" aria-live="polite">
+          <p>
+            Đã trích chữ: {state.progress.extracted_pages}/{state.progress.selected_pages} trang đã
+            chọn · Tổ chức nguồn: {state.progress.chunked_pages}/{state.progress.selected_pages}{' '}
+            trang.
+          </p>
+          <p>
+            Chuẩn bị tìm kiếm: {state.progress.embedded_chunks}/{state.progress.eligible_chunks}{' '}
+            phần nội dung đủ điều kiện · Tổng PDF: {state.total_pages} trang.
+          </p>
+          {processing && (
+            <p>Bạn có thể rời trang. Tiến độ đã lưu sẽ tiếp tục khi dịch vụ hoạt động trở lại.</p>
+          )}
+        </div>
+      )}
+      {state?.status === 'needs_review' && (
+        <p className="notice">
+          Nguồn sẵn sàng một phần: chỉ trang đủ điều kiện đã chuẩn bị xong được dùng. Các trang ít
+          chữ/scan cần đối chiếu hoặc phiên chép; hệ thống chưa thực hiện OCR.
+        </p>
+      )}
+      {!compact && state && (
+        <RagScopeEditor
+          versionId={versionId}
+          pageCount={pageCount}
+          topics={topics}
+          state={state}
+          csrfToken={csrfToken}
+          onSaved={(value) => {
+            setState(value)
+            setRefresh((v) => v + 1)
+          }}
+        />
+      )}
       {state?.status === 'failed' && (
         <p role="alert" className="notice notice-error">
           {state.error_code === 'EMBEDDING_UNAVAILABLE'
@@ -250,6 +305,7 @@ export default function RagDocumentPanel({
               disabled={busy || processing}
               onChange={(e) => {
                 setFilter(e.target.checked)
+                setPageIndex(0)
                 setTranscription('')
               }}
             />{' '}
@@ -265,6 +321,25 @@ export default function RagDocumentPanel({
             </p>
           ) : (
             <>
+              <div className="rag-actions" aria-label="Phân trang nguồn">
+                <button
+                  className="button button-secondary"
+                  disabled={pageIndex === 0 || busy}
+                  onClick={() => setPageIndex((i) => i - 1)}
+                >
+                  Trang nguồn trước
+                </button>
+                <span>
+                  Nhóm{pageIndex + 1}/{Math.max(1, Math.ceil(pageTotal / 10))} · {pageTotal} trang
+                </span>
+                <button
+                  className="button button-secondary"
+                  disabled={(pageIndex + 1) * 10 >= pageTotal || busy}
+                  onClick={() => setPageIndex((i) => i + 1)}
+                >
+                  Trang nguồn sau
+                </button>
+              </div>
               <label htmlFor={`rag-page-${versionId}`}>Trang cần đối chiếu</label>
               <select
                 id={`rag-page-${versionId}`}

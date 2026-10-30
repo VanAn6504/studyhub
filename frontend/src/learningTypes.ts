@@ -8,6 +8,8 @@ export type DocumentVersion = {
   status: string
 }
 export type LearningDocument = {
+  document_type: 'textbook' | 'lecture' | 'supplement'
+  show_in_learning: boolean
   id: string
   code: string
   title: string
@@ -77,18 +79,42 @@ export type StudentReport = {
 }
 
 export type TopicState = {
-  topic_id: string; topic_code: string; title: string; state: string;
-  score_percent: number | null; reason: string; quiz_version_id: string | null;
+  topic_id: string
+  topic_code: string
+  title: string
+  state: string
+  score_percent: number | null
+  reason: string
+  quiz_version_id: string | null
 }
 export type LearningPath = {
-  revision: number; generated_at: string; data_origin: string;
-  topic_states: TopicState[]; unavailable_topics: TopicState[];
-  warnings: { topic_id: string; reason: string }[];
-  steps: (TopicState & { position: number; materials: { document_version_id: string; title: string; document_code: string; page_start: number; page_end: number }[] })[];
+  revision: number
+  generated_at: string
+  data_origin: string
+  topic_states: TopicState[]
+  unavailable_topics: TopicState[]
+  warnings: { topic_id: string; reason: string }[]
+  steps: (TopicState & {
+    position: number
+    materials: {
+      document_version_id: string
+      title: string
+      document_code: string
+      page_start: number
+      page_end: number
+    }[]
+  })[]
 }
 export type PredictionResult = {
-  status: 'not_ready' | 'not_computed' | 'insufficient_data' | 'model_unavailable' | 'ok';
-  risk_score: number | null; cutoff_end_at: string; data_origin: string; model_code?: string;
-  threshold?: number; threshold_exceeded?: boolean;
-  explanation?: { base_value: number; contributions: { feature: string; value: number | null; contribution: number }[] };
+  status: 'not_ready' | 'not_computed' | 'insufficient_data' | 'model_unavailable' | 'ok'
+  risk_score: number | null
+  cutoff_end_at: string
+  data_origin: string
+  model_code?: string
+  threshold?: number
+  threshold_exceeded?: boolean
+  explanation?: {
+    base_value: number
+    contributions: { feature: string; value: number | null; contribution: number }[]
+  }
 }

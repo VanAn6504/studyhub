@@ -269,6 +269,7 @@ export default function CourseDashboard({
       ]
     : [
         ['topics', 'Nội dung học phần'],
+        ['materials', 'Giáo trình và tài liệu bổ sung'],
         ['progress', 'Lộ trình & tiến độ'],
         ['results', 'Kết quả'],
       ]

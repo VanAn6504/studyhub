@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { request } from './api'
 import type { LearningDocument } from './learningTypes'
+import DocumentSettings, { defaultDocumentSettings } from './DocumentSettings'
 
 export default function DocumentActions({
   document,
@@ -17,7 +18,13 @@ export default function DocumentActions({
   onFailure: (error: unknown) => void
 }) {
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ code: document.code, title: document.title })
+  const initial = () => ({
+    code: document.code,
+    title: document.title,
+    document_type: document.document_type || ('lecture' as const),
+    show_in_learning: document.show_in_learning ?? true,
+  })
+  const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [replaceFile, setReplaceFile] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -33,6 +40,8 @@ export default function DocumentActions({
         body.append('code', form.code)
         body.append('title', form.title)
         body.append('file', file)
+        body.append('document_type', form.document_type)
+        body.append('show_in_learning', String(form.show_in_learning))
         updated = await request<LearningDocument>(`/documents/${document.id}/file`, {
           method: 'PUT',
           csrfToken,
@@ -78,7 +87,7 @@ export default function DocumentActions({
           className="button button-secondary"
           disabled={busy}
           onClick={() => {
-            setForm({ code: document.code, title: document.title })
+            setForm(initial())
             setReplaceFile(false)
             setFile(null)
             setEditing((v) => !v)
@@ -120,6 +129,10 @@ export default function DocumentActions({
               File hiện tại: {document.versions[0]?.original_filename || 'PDF'}
               {document.versions.length > 1 ? ` · ${document.versions.length} phiên bản` : ''}
             </p>
+            <DocumentSettings
+              value={{ ...defaultDocumentSettings, ...form }}
+              onChange={(value) => setForm((v) => ({ ...v, ...value }))}
+            />
             <label className="review-confirm">
               <input
                 type="checkbox"
