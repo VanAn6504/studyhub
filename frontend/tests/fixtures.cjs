@@ -33,3 +33,24 @@ function fixturePdf() {
 }
 
 module.exports = { fixturePdf }
+
+// Varied page sizes, a real outline destination and an empty scan-like page.
+module.exports.readerPdf = function readerPdf(count = 160) {
+  const objects = ['','', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
+  const add = value => { objects.push(value); return objects.length }
+  const pages = []
+  for (let n = 1; n <= count; n++) {
+    const stream = n === 3 ? '' : `BT /F1 12 Tf 20 250 Td (Reader page ${n}. Searchable normalization example.) Tj ET\n`
+    const content = add(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`)
+    pages.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n % 4 === 0 ? '600 300' : '300 500'}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${content} 0 R >>`))
+  }
+  const outline = add(''), entry = add(`<< /Title (Last chapter) /Parent ${outline} 0 R /Dest [${pages[count-1]} 0 R /Fit] >>`)
+  objects[outline-1] = `<< /Type /Outlines /First ${entry} 0 R /Last ${entry} 0 R /Count 1 >>`
+  objects[0] = `<< /Type /Catalog /Pages 2 0 R /Outlines ${outline} 0 R >>`
+  objects[1] = `<< /Type /Pages /Kids [${pages.map(n => n+' 0 R').join(' ')}] /Count ${count} >>`
+  let output = '%PDF-1.4\n'; const offsets = [0]
+  objects.forEach((value,i) => { offsets.push(Buffer.byteLength(output)); output += `${i+1} 0 obj\n${value}\nendobj\n` })
+  const xref = Buffer.byteLength(output)
+  output += `xref\n0 ${objects.length+1}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+  return Buffer.from(output)
+}

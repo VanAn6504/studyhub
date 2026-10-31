@@ -18,7 +18,7 @@ after(async () => {
 
 const { fixturePdf } = require('./fixtures.cjs')
 
-async function workspace(role = 'student', failFirstEvent = false) {
+async function workspace(role = 'student', failFirstEvent = false, reader = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
   const page = await context.newPage()
   const errors = [],
@@ -68,7 +68,8 @@ async function workspace(role = 'student', failFirstEvent = false) {
     code: 'PDF',
     title: 'PDF regression fixture',
     status: 'published',
-    versions: [{ id: 'version-fixture', version: 1, page_count: 2, status: 'ready' }],
+    document_type: reader.kind || 'lecture', show_in_learning: true,
+    versions: [{ id: 'version-fixture', version: 1, page_count: reader.count || 2, status: 'ready' }],
   }
   const item = {
     quiz_version_item_id: 'item-fixture',
@@ -253,7 +254,8 @@ async function workspace(role = 'student', failFirstEvent = false) {
         },
       ])
     else if (path.endsWith('/content')) {
-      await route.fulfill({ contentType: 'application/pdf', body: fixturePdf() })
+      if (reader.denied) await route.fulfill({status:404,json:{error:{code:'NOT_FOUND',message:'PDF không còn quyền đọc.'}}})
+      else await route.fulfill({ contentType: 'application/pdf', body: reader.pdf || fixturePdf() })
       return
     } else if (path.endsWith('/attempts') && method === 'POST') {
       attempt = {
@@ -267,6 +269,7 @@ async function workspace(role = 'student', failFirstEvent = false) {
       }
       payload = attempt
     } else if (path.endsWith('/answers')) {
+      if (reader.failSave) { reader.failSave=false; await route.fulfill({status:503,json:{error:{code:'SAVE_FIXTURE',message:'Lưu tạm thời thất bại.'}}});return }
       attempt = {
         ...attempt,
         answer_revision: 2,
@@ -401,12 +404,14 @@ test(
       assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       await screenshot(p, 'document-replaced-mobile.png')
       p.once('dialog', (d) => d.dismiss())
+      await p.getByText('Thao tác tài liệu', { exact: true }).click()
       await p.getByRole('button', { name: 'Xóa tài liệu', exact: true }).click()
       assert.equal(f.requests.filter((r) => r.method === 'DELETE').length, 0)
       p.once('dialog', (d) => {
         assert.match(d.message(), /Xóa vĩnh viễn/)
         return d.accept()
       })
+      await p.getByText('Thao tác tài liệu', { exact: true }).click()
       await p.getByRole('button', { name: 'Xóa tài liệu', exact: true }).click()
       await p.getByText('Đã xóa vĩnh viễn tài liệu và các file PDF.', { exact: true }).waitFor()
       assert.equal(await p.getByRole('button', { name: 'Mở tài liệu', exact: true }).count(), 0)
@@ -508,7 +513,7 @@ async function singlePanels(page, viewer = 0) {
 async function openPdf(page, button, expectedPage) {
   await button.click()
   const viewer = page.locator('.pdf-viewer')
-  await viewer.locator('.pdf-text').waitFor()
+  await viewer.locator(`.pdf-page[data-page="${expectedPage}"] .pdf-text`).waitFor()
   assert.equal(
     await viewer.getByLabel('Trang PDF', { exact: true }).inputValue(),
     String(expectedPage),
@@ -522,6 +527,61 @@ async function screenshot(page, name) {
   await fs.mkdir(directory, { recursive: true })
   await page.screenshot({ path: path.join(directory, name), fullPage: true })
 }
+
+test('virtual reader keeps visible-only logs, Enter navigation, outline, search and mode/zoom position', { timeout: 90000 }, async () => {
+  const { readerPdf } = require('./fixtures.cjs')
+  const f = await workspace('student',false,{pdf:readerPdf(),count:160,kind:'textbook'}), p=f.page
+  try {
+    await openPdf(p,p.getByRole('button',{name:'Đọc tài liệu',exact:true}),2)
+    await p.waitForTimeout(800)
+    assert.deepEqual(f.events.filter(e=>e.type==='page_view').map(e=>e.pdf_page),[2],'Preloaded pages do not count')
+    assert.ok(await p.locator('.pdf-page canvas').count()<8,'Long documents keep a bounded canvas window')
+    assert.equal(await p.getByLabel('Chế độ đọc',{exact:true}).inputValue(),'continuous')
+    const input=p.getByLabel('Trang PDF',{exact:true})
+    await input.fill('150');await p.waitForTimeout(200)
+    assert.equal(f.events.filter(e=>e.type==='page_view').length,1,'Typing does not navigate')
+    await input.press('Enter');await p.locator('.pdf-page[data-page="150"][data-ready="true"]').waitFor()
+    await p.getByRole('button',{name:'Mục lục',exact:true}).click()
+    await p.getByRole('button',{name:'Last chapter',exact:true}).click()
+    await p.locator('.pdf-page[data-page="160"][data-ready="true"]').waitFor()
+    await p.getByRole('button',{name:'Mục lục',exact:true}).click()
+    await p.getByRole('button',{name:'Tìm trong PDF',exact:true}).click()
+    await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).fill('Reader page 120.')
+    await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).press('Enter')
+    await p.getByText('1/1 kết quả · trang PDF 120',{exact:true}).waitFor()
+    await p.locator('.pdf-page[data-page="120"][data-ready="true"]').waitFor()
+    await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).fill('Searchable')
+    await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).press('Enter')
+    await p.getByText('1/159 kết quả · trang PDF 1',{exact:true}).waitFor()
+    await p.getByRole('button',{name:'Kết quả sau',exact:true}).click()
+    await p.getByText('2/159 kết quả · trang PDF 2',{exact:true}).waitFor()
+    await p.getByRole('button',{name:'Kết quả trước',exact:true}).click()
+    await p.getByText('1/159 kết quả · trang PDF 1',{exact:true}).waitFor()
+    await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).fill('Reader page 120.')
+    await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).press('Enter')
+    await p.getByText('1/1 kết quả · trang PDF 120',{exact:true}).waitFor()
+    await p.locator('.pdf-page[data-page="120"][data-ready="true"]').waitFor()
+    const span=p.locator('.pdf-page[data-page="120"] .textLayer span').first()
+    assert.ok((await span.boundingBox()).width>20,'Text layer has selectable geometry')
+    assert.match(await span.evaluate(el=>{const r=document.createRange();r.selectNodeContents(el);getSelection().removeAllRanges();getSelection().addRange(r);return getSelection().toString()}),/Reader page 120/)
+    await p.getByRole('button',{name:'Tìm trong PDF',exact:true}).click()
+    for(const mode of ['single','continuous']){
+      await p.getByLabel('Chế độ đọc',{exact:true}).selectOption(mode)
+      await p.locator('.pdf-page[data-page="120"][data-ready="true"]').waitFor()
+      assert.equal(await input.inputValue(),'120')
+    }
+    await p.getByLabel('Độ phóng PDF',{exact:true}).selectOption('page')
+    await p.getByRole('button',{name:'Phóng to',exact:true}).click();await p.waitForTimeout(800)
+    assert.equal(await input.inputValue(),'120')
+    const before=f.events.length
+    await p.locator('.pdf-scroll').evaluate(el=>el.scrollTop+=10);await p.waitForTimeout(650)
+    assert.equal(f.events.length,before,'Pixel scrolling/zoom does not duplicate page events')
+    await screenshot(p,'reader-desktop.png')
+    await input.fill('3');await input.press('Enter');await p.locator('.pdf-page[data-page="3"] .pdf-text summary').click()
+    await p.getByText('Trang này không có lớp văn bản. Có thể là ảnh/scan; StudyHub chưa có OCR.',{exact:true}).waitFor()
+    assert.deepEqual(f.errors,[])
+  }catch(error){await screenshot(p,'virtual-reader-failure.png');console.log(await p.locator('.pdf-search').innerText());throw error}finally{await f.context.close()}
+})
 
 test(
   'repeated PDF opens and page logs keep a single path/chat and do not reload guidance',
@@ -551,13 +611,13 @@ test(
           'One open and one first page event per viewer session',
         )
         await viewer.getByRole('button', { name: 'Trang trước', exact: true }).click()
-        await viewer
+        await viewer.locator('.pdf-text')
           .getByText('Row arranges children horizontally.', { exact: true })
           .waitFor({ state: 'attached' })
         await new Promise((resolve) => setTimeout(resolve, 750))
         await f.page.waitForLoadState('networkidle')
         assert.equal(f.events.length - eventStart, 3, 'One event for the next visible page')
-        await f.page.getByRole('button', { name: 'Đóng tài liệu', exact: true }).click()
+        await f.page.getByRole('button', { name: 'Về chủ đề', exact: true }).click()
         await singlePanels(f.page)
       }
       for (const suffix of ['/learning-path', '/documents', '/results']) {
@@ -587,7 +647,7 @@ test(
         2,
       )
       await singlePanels(f.page, 1)
-      await f.page.getByRole('button', { name: 'Đóng tài liệu', exact: true }).click()
+      await f.page.getByRole('button', { name: 'Về lộ trình', exact: true }).click()
       await f.page.getByRole('button', { name: 'Hỏi trợ giảng', exact: true }).click()
       await openPdf(
         f.page,
@@ -625,7 +685,7 @@ test(
       assert.equal(f.batches[1][0].client_event_id, f.batches[0][0].client_event_id)
       assert.equal(f.events.length, 2)
       assert.equal(countRequests(f, '/learning-path'), pathBefore)
-      await f.page.getByRole('button', { name: 'Đóng tài liệu', exact: true }).click()
+      await f.page.getByRole('button', { name: 'Về chủ đề', exact: true }).click()
       await f.page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
       await f.page.getByRole('button', { name: 'Cập nhật lộ trình', exact: true }).click()
       await f.page.waitForLoadState('networkidle')
@@ -636,6 +696,7 @@ test(
       await f.page.getByRole('button', { name: 'Bắt đầu / tiếp tục quiz', exact: true }).click()
       await f.page.getByRole('radio').first().check()
       await f.page.getByRole('button', { name: 'Nộp và xem kết quả', exact: true }).click()
+      await f.page.getByRole('button', { name: 'Xác nhận nộp', exact: true }).click()
       await f.page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
       await f.page
         .locator('.guidance-panel')
@@ -664,7 +725,7 @@ test(
         await openPdf(f.page, f.page.getByRole('button', { name: 'Xem PDF', exact: true }), 1)
         assert.equal(await f.page.locator('.guidance-panel').count(), 0)
         assert.equal(await f.page.locator('.rag-document').count(), 1)
-        await f.page.getByRole('button', { name: 'Đóng tài liệu', exact: true }).click()
+        await f.page.getByRole('button', { name: 'Về tài liệu', exact: true }).click()
       }
       assert.equal(f.batches.length, 0)
       assert.deepEqual(f.errors, [])
@@ -774,3 +835,96 @@ test(
     }
   },
 )
+
+test('mobile reader/chat/citation and drawer preserve the reading session and draft', {timeout:60000}, async()=>{
+ const f=await workspace(),p=f.page
+ try{
+  await p.setViewportSize({width:390,height:844})
+  await openPdf(p,p.getByRole('button',{name:'Đọc tài liệu',exact:true}),2)
+  await p.waitForTimeout(750)
+  const opens=f.events.filter(e=>e.type==='document_open').length
+  await p.getByRole('button',{name:'Hỏi trợ giảng',exact:true}).click()
+  const question=p.getByLabel('Câu hỏi từ PDF · tối đa 2000 ký tự',{exact:true})
+  await question.fill('Giữ nguyên câu hỏi đang nhập')
+  await p.locator('.chat-citations').getByRole('button').click()
+  await p.locator('.pdf-page[data-page="2"][data-ready="true"]').waitFor()
+  await p.getByRole('button',{name:'Trở lại hội thoại',exact:true}).click()
+  assert.equal(await question.inputValue(),'Giữ nguyên câu hỏi đang nhập')
+  await p.getByRole('button',{name:'Đóng trợ giảng',exact:true}).click()
+  for(const width of [360,390,768,1440]){
+   await p.setViewportSize({width,height:900})
+   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Reader fits ${width}`)
+   await screenshot(p,`reader-${width}.png`)
+  }
+  await p.setViewportSize({width:390,height:844})
+  await p.getByRole('button',{name:'Điều hướng học phần',exact:true}).click()
+  const drawer=p.locator('.course-drawer');await drawer.waitFor()
+  await p.keyboard.press('Tab');assert.ok(await drawer.evaluate(el=>el.contains(document.activeElement)))
+  await drawer.getByRole('button',{name:'Kết quả',exact:true}).click()
+  await p.goBack();await p.locator('.pdf-page[data-page="2"][data-ready="true"]').waitFor();await p.waitForTimeout(750)
+  assert.equal(f.events.filter(e=>e.type==='document_open').length,opens,'Back/remount does not invent a new reading session')
+  await p.getByRole('button',{name:'Tập trung',exact:true}).click();assert.ok(await p.locator('.pdf-viewer').evaluate(el=>el.classList.contains('is-focused')))
+  assert.equal(await p.locator('.site-header').isVisible(),false,'Focus mode removes background controls from keyboard navigation')
+  await p.keyboard.press('Tab');assert.ok(await p.locator('.pdf-viewer').evaluate(el=>el.contains(document.activeElement)))
+  await p.getByRole('button',{name:'Thoát tập trung',exact:true}).click()
+  assert.deepEqual(f.errors,[])
+ }finally{await f.context.close()}
+})
+
+test('page-list fallback, scan notice, search empty and withdrawn PDF have usable return paths',{timeout:60000},async()=>{
+ const reader={},f=await workspace('student',false,reader),p=f.page
+ try{
+  await openPdf(p,p.getByRole('button',{name:'Đọc tài liệu',exact:true}),2)
+  await p.getByRole('button',{name:'Mục lục',exact:true}).click()
+  await p.locator('.pdf-page-list').getByRole('button',{name:'1',exact:true}).click()
+  await p.locator('.pdf-page[data-page="1"][data-ready="true"]').waitFor()
+  await p.getByRole('button',{name:'Mục lục',exact:true}).click()
+  await p.getByRole('button',{name:'Tìm trong PDF',exact:true}).click()
+  await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).fill('no-such-phrase')
+  await p.getByLabel('Tìm văn bản trong PDF',{exact:true}).press('Enter')
+  await p.getByText('Không tìm thấy văn bản. Trang scan/ảnh chưa được OCR.',{exact:true}).waitFor()
+  await p.getByRole('button',{name:'Về chủ đề',exact:true}).click()
+  reader.denied=true
+  await p.getByRole('button',{name:'Đọc tài liệu',exact:true}).click()
+  await p.getByRole('alert').filter({hasText:'Không thể tải PDF:'}).waitFor()
+  await p.getByRole('button',{name:'Về chủ đề',exact:true}).click()
+  await p.getByRole('heading',{name:'FL01 · Layout',exact:true}).waitFor()
+  assert.deepEqual(f.errors.filter(e=>!e.includes('404 (Not Found)')),[])
+ }finally{await f.context.close()}
+})
+
+test('quiz save errors retain answers, retry works and submission requires explicit confirmation',{timeout:60000},async()=>{
+ const f=await workspace('student',false,{failSave:true}),p=f.page
+ try{
+  await p.getByRole('button',{name:'Làm quiz',exact:true}).click();await p.getByRole('button',{name:'Bắt đầu / tiếp tục quiz',exact:true}).click()
+  await p.getByRole('radio').first().check();await p.getByRole('button',{name:'Lưu bài làm',exact:true}).click()
+  await p.getByText('Lưu tạm thời thất bại.',{exact:true}).waitFor();assert.ok(await p.getByRole('radio').first().isChecked())
+  await p.getByRole('button',{name:'Thử lưu/nộp lại',exact:true}).click();await p.getByText('Đã lưu bài làm. Bạn có thể quay lại làm tiếp.',{exact:true}).waitFor()
+  await p.getByRole('button',{name:'Nộp và xem kết quả',exact:true}).click()
+  assert.equal(f.requests.filter(r=>r.path.endsWith('/submit')).length,0)
+  await p.getByRole('button',{name:'Tiếp tục làm bài',exact:true}).click()
+  await p.getByRole('button',{name:'Nộp và xem kết quả',exact:true}).click();await p.getByRole('button',{name:'Xác nhận nộp',exact:true}).click()
+  await p.getByRole('heading',{name:'Kết quả bài làm',exact:true}).waitFor()
+  assert.equal(f.requests.filter(r=>r.path.endsWith('/submit')).length,1)
+  assert.deepEqual(f.errors.filter(e=>!e.includes('503 (Service Unavailable)')),[])
+ }finally{await f.context.close()}
+})
+
+test('real local textbook uses a bounded canvas window and readable text at PDF page147',{timeout:90000,skip:!process.env.STUDYHUB_READER_PDF},async()=>{
+ const data=await fs.readFile(process.env.STUDYHUB_READER_PDF),f=await workspace('teacher',false,{pdf:data,count:392,kind:'textbook'}),p=f.page
+ try{
+  const start=Date.now();await openPdf(p,p.getByRole('button',{name:'Xem PDF',exact:true}),1)
+  const input=p.getByLabel('Trang PDF',{exact:true});await input.fill('147');await input.press('Enter')
+  await p.locator('.pdf-page[data-page="147"][data-ready="true"]').waitFor()
+  const count=await p.locator('.pdf-page canvas').count();assert.ok(count<8)
+  assert.ok(await p.locator('.pdf-page[data-page="147"] .textLayer span').count()>10)
+  await p.waitForTimeout(750)
+  await p.reload({waitUntil:'networkidle'})
+  await p.locator('.pdf-page[data-page="147"][data-ready="true"]').waitFor()
+  assert.equal(await p.getByLabel('Trang PDF',{exact:true}).inputValue(),'147','Deep URL reload keeps the PDF page')
+  await p.getByLabel('Độ phóng PDF',{exact:true}).selectOption('page');await p.locator('.pdf-page[data-page="147"][data-ready="true"]').waitFor()
+  await screenshot(p,'real-textbook-147.png')
+  if(process.env.UI_SCREENSHOT_DIR)await fs.writeFile(path.join(process.env.UI_SCREENSHOT_DIR,'real-textbook.json'),JSON.stringify({bytes:data.length,totalPages:392,page:147,canvases:count,elapsedMs:Date.now()-start,teacherEvents:f.events.length}))
+  assert.equal(f.events.length,0);assert.deepEqual(f.errors,[])
+ }finally{await f.context.close()}
+})

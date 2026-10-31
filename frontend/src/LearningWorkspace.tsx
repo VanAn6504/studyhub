@@ -18,10 +18,13 @@ import ChatPanel from './ChatPanel'
 import TopicEditor from './TopicEditor'
 import DocumentActions from './DocumentActions'
 import DocumentSettings, { defaultDocumentSettings, documentTypeLabels } from './DocumentSettings'
-import type { NavigationGuard, WorkspaceRoute } from './workspaceNavigation'
+import type { NavigationGuard, WorkspaceRoute, WorkspaceView } from './workspaceNavigation'
 import './learning.css'
 import { replacePosition } from './website/navigation'
 import { routeHash } from './workspaceNavigation'
+import { savedPosition } from './pdf/readerState'
+import type { ReadingSession } from './pdf/readerState'
+import { useNarrowReader } from './workspace/CourseNavigation'
 
 export default function LearningWorkspace({
   courseId,
@@ -63,12 +66,19 @@ export default function LearningWorkspace({
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatVisited, setChatVisited] = useState(false)
+  const [fromCitation, setFromCitation] = useState(false)
+  const narrow = useNarrowReader()
+  const readingSessions = useRef(new Map<string, ReadingSession>())
+  const positionScope = `${session.user.id}:${teacher ? 'preview' : run?.id}`
   const [guidanceVisited, setGuidanceVisited] = useState(false)
   const [quizVisited, setQuizVisited] = useState('')
   const [editorVisited, setEditorVisited] = useState('')
   const [quizDirty, setQuizDirty] = useState(false)
   const [quizBusy, setQuizBusy] = useState(false)
-  const viewerReturn = useRef<WorkspaceRoute['view']>('topic')
+  const viewerReturn = useRef<WorkspaceRoute['view']>(
+    route.returnView || (route.topicId ? 'topic' : 'materials'),
+  )
+  if (route.view === 'pdf' && route.returnView) viewerReturn.current = route.returnView
   const [uploadTarget, setUploadTarget] = useState({ topicId: '', start: 1, end: '' })
   const [pendingLink, setPendingLink] = useState<{
     versionId: string
@@ -96,11 +106,44 @@ export default function LearningWorkspace({
   function go(view: WorkspaceRoute['view'], fields: Partial<WorkspaceRoute> = {}) {
     onNavigate({ ...route, view, ...fields })
   }
-  function readPdf(versionId: string, page: number) {
+  function readPdf(versionId: string, page?: number, citation = false) {
     if (route.view !== 'pdf') viewerReturn.current = route.view
-    setChatOpen(false)
-    go('pdf', { versionId, page })
+    if (route.view !== 'pdf' || route.versionId !== versionId)
+      readingSessions.current.set(versionId, {
+        id: crypto.randomUUID(),
+        opened: false,
+        lastPage: 0,
+      })
+    setFromCitation(citation)
+    if (narrow) setChatOpen(false)
+    go('pdf', {
+      versionId,
+      page: page ?? savedPosition(positionScope, versionId)?.page ?? 1,
+      returnView: viewerReturn.current as WorkspaceView,
+      topicId: ['materials', 'document'].includes(viewerReturn.current) ? undefined : route.topicId,
+    })
   }
+  function readMaterial(
+    material: Pick<Material, 'document_version_id' | 'page_start'> & { page_end?: number },
+  ) {
+    const saved = savedPosition(positionScope, material.document_version_id)?.page
+    readPdf(
+      material.document_version_id,
+      saved && saved >= material.page_start && saved <= (material.page_end ?? material.page_start)
+        ? saved
+        : material.page_start,
+    )
+  }
+  function closeChat() {
+    setChatOpen(false)
+    document.querySelector<HTMLButtonElement>('[data-chat-opener]')?.focus()
+  }
+  useEffect(() => {
+    if (chatOpen)
+      document
+        .querySelector<HTMLTextAreaElement>('.workspace-chat-container textarea')
+        ?.focus({ preventScroll: true })
+  }, [chatOpen])
   useEffect(() => {
     if (route.view === 'progress') setGuidanceVisited(true)
   }, [route.view])
@@ -496,7 +539,17 @@ export default function LearningWorkspace({
       : []),
   ].flatMap((document) => document.versions.map((version) => ({ ...version, document })))
   const selectedVersion = versions.find((v) => v.id === route.versionId)
-  const chatTopic = ['topic','quiz'].includes(route.view) || (route.view==='pdf'&&['topic','quiz'].includes(viewerReturn.current)) ? topic : undefined
+  if (selectedVersion && !readingSessions.current.has(selectedVersion.id))
+    readingSessions.current.set(selectedVersion.id, {
+      id: crypto.randomUUID(),
+      opened: false,
+      lastPage: 0,
+    })
+  const chatTopic =
+    ['topic', 'quiz'].includes(route.view) ||
+    (route.view === 'pdf' && ['topic', 'quiz'].includes(viewerReturn.current))
+      ? topic
+      : undefined
   const heading = (title: string, actions?: ReactNode) => (
     <div className="section-heading">
       <div>
@@ -523,364 +576,787 @@ export default function LearningWorkspace({
           : 'Cần ôn tập'
   }
   return (
-    <section className="learning-workspace" aria-labelledby="learning-workspace-heading">
-      {error && (
-        <p className="notice notice-error" role="alert">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className="notice notice-success" role="status">
-          {message}
-        </p>
-      )}
-      {loading && <p role="status">Đang tải tài liệu và bài làm…</p>}
-      {pending > 0 && (
-        <p className="notice" role="status">
-          {logError || `Đang gửi ${pending} log học tập…`}
-          {logError && (
-            <button className="text-button" onClick={() => void flush()}>
-              Gửi lại log
-            </button>
-          )}
-        </p>
-      )}
-      {route.view === 'topics' && (
-        <>
-          {heading(
-            teacher ? 'Chủ đề' : 'Nội dung học phần',
-            <div className="workspace-actions">
-              {teacher ? (
-                <button
-                  className="button button-primary"
-                  onClick={() => go('topic-editor', { topicId: undefined })}
-                >
-                  Thêm chủ đề
-                </button>
-              ) : null}
-            </div>,
-          )}
-          {topicsLoading ? (
-            <p role="status">Đang tải chủ đề…</p>
-          ) : !topics.length ? (
-            <div className="workspace-empty">
-              <h3>Chưa có chủ đề</h3>
-              <p>
-                {teacher
-                  ? 'Thêm chủ đề đầu tiên hoặc vào Tài liệu để upload PDF.'
-                  : 'Giảng viên chưa chuẩn bị chủ đề.'}
-              </p>
-            </div>
-          ) : (
+    <section
+      className={`learning-workspace ${chatOpen ? 'has-chat' : ''} ${narrow && chatOpen ? 'mobile-chat-active' : ''}`}
+      aria-label="Nội dung học phần"
+    >
+      <div className="learning-content">
+        {route.view === 'overview' && (
+          <>
+            <h2>Tổng quan học phần</h2>
+            <p>Học theo chủ đề, đọc tài liệu và dùng quiz để đánh giá kiến thức.</p>
             <div className="workspace-grid">
-              {topics.map((value) => (
-                <article className="workspace-card topic-card" key={value.id}>
-                  <span className="eyebrow">{value.code}</span>
-                  <h3>{value.title}</h3>
-                  <p className="muted">
-                    {value.materials.length} mục tài liệu ·{' '}
-                    {value.quiz ? `${value.quiz.question_count} câu quiz` : 'Chưa có quiz'}
-                  </p>
-                  <span className="workspace-badge">
-                    {teacher
-                      ? value.quiz
-                        ? 'Quiz đã công bố'
-                        : 'Cần chuẩn bị quiz'
-                      : quizState(value)}
-                  </span>
+              <article className="workspace-card">
+                <h3>Nội dung</h3>
+                <p>
+                  {topics.length} chủ đề · {documents.length} tài liệu{' '}
+                  {teacher ? 'đang quản lý' : 'trong thư viện'}.
+                </p>
+                <button className="button button-primary" onClick={() => go('topics')}>
+                  {teacher ? 'Quản lý chủ đề' : 'Mở nội dung học phần'}
+                </button>
+              </article>
+              <article className="workspace-card">
+                <h3>Đánh giá kiến thức</h3>
+                <p>{topics.filter((t) => !!t.quiz).length} chủ đề có quiz hiện tại.</p>
+                <p className="muted">
+                  Lượt mở PDF chỉ ghi nhận hoạt động, không có nghĩa đã đọc hết hoặc đã hiểu. Trạng
+                  thái đạt dựa trên quiz hiện tại.
+                </p>
+                <button className="text-button" onClick={() => go(teacher ? 'report' : 'progress')}>
+                  {teacher ? 'Xem kết quả lớp' : 'Xem lộ trình & tiến độ'}
+                </button>
+              </article>
+            </div>
+          </>
+        )}
+        {error && (
+          <p className="notice notice-error" role="alert">
+            {error}
+          </p>
+        )}
+        {message && (
+          <p className="notice notice-success" role="status">
+            {message}
+          </p>
+        )}
+        {loading && <p role="status">Đang tải tài liệu và bài làm…</p>}
+        {pending > 0 && (
+          <p className="notice" role="status">
+            {logError || `Đang gửi ${pending} log học tập…`}
+            {logError && (
+              <button className="text-button" onClick={() => void flush()}>
+                Gửi lại log
+              </button>
+            )}
+          </p>
+        )}
+        {route.view === 'topics' && (
+          <>
+            {heading(
+              teacher ? 'Chủ đề' : 'Nội dung học phần',
+              <div className="workspace-actions">
+                {teacher ? (
+                  <button
+                    className="button button-primary"
+                    onClick={() => go('topic-editor', { topicId: undefined })}
+                  >
+                    Thêm chủ đề
+                  </button>
+                ) : null}
+              </div>,
+            )}
+            {topicsLoading ? (
+              <p role="status">Đang tải chủ đề…</p>
+            ) : !topics.length ? (
+              <div className="workspace-empty">
+                <h3>Chưa có chủ đề</h3>
+                <p>
+                  {teacher
+                    ? 'Thêm chủ đề đầu tiên hoặc vào Tài liệu để upload PDF.'
+                    : 'Giảng viên chưa chuẩn bị chủ đề.'}
+                </p>
+              </div>
+            ) : (
+              <div className="workspace-grid">
+                {topics.map((value) => (
+                  <article className="workspace-card topic-card" key={value.id}>
+                    <span className="eyebrow">{value.code}</span>
+                    <h3>{value.title}</h3>
+                    <p className="muted">
+                      {value.materials.length} mục tài liệu ·{' '}
+                      {value.quiz ? `${value.quiz.question_count} câu quiz` : 'Chưa có quiz'}
+                    </p>
+                    <span className="workspace-badge">
+                      {teacher
+                        ? value.quiz
+                          ? 'Quiz đã công bố'
+                          : 'Cần chuẩn bị quiz'
+                        : quizState(value)}
+                    </span>
+                    <div className="workspace-actions">
+                      <button
+                        className="button button-primary"
+                        onClick={() => go('topic', { topicId: value.id })}
+                      >
+                        {teacher ? 'Quản lý chủ đề' : 'Vào học'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {teacher && route.view === 'topic-editor' && (
+          <>
+            {heading(route.topicId ? 'Chỉnh chủ đề' : 'Thêm chủ đề')}
+            <TopicEditor
+              key={route.topicId || 'new'}
+              courseId={courseId}
+              topic={route.topicId ? topic : undefined}
+              topics={topics}
+              csrfToken={csrfToken}
+              onFailure={fail}
+              onSaved={(id) => {
+                changed()
+                go('topic', { topicId: id })
+              }}
+            />
+          </>
+        )}
+        {route.view === 'topic' && topic && (
+          <>
+            {heading(
+              `${topic.code} · ${topic.title}`,
+              <div className="workspace-actions">
+                {teacher ? (
+                  <button className="button button-secondary" onClick={() => go('topic-editor')}>
+                    Chỉnh chủ đề
+                  </button>
+                ) : null}
+              </div>,
+            )}
+            <div className="workspace-topic-detail">
+              <h3>Mục tiêu học tập</h3>
+              {topic.objectives.length ? (
+                <ul>
+                  {topic.objectives.map((text, i) => (
+                    <li key={i}>{text}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Chưa có mục tiêu.</p>
+              )}
+              {!!topic.prerequisite_topic_ids.length && (
+                <p className="muted">
+                  Kiến thức tiên quyết:{' '}
+                  {topic.prerequisite_topic_ids
+                    .map((id) => topics.find((t) => t.id === id)?.code || '')
+                    .join(', ')}
+                </p>
+              )}
+              <h2>Tài liệu học tập</h2>
+              {!topic.materials.length && (
+                <p className="muted">Chưa có tài liệu gắn với chủ đề này.</p>
+              )}
+              {topic.materials.map((material) => (
+                <div className="workspace-row" key={material.order_index}>
+                  <div>
+                    <strong>{material.title}</strong>
+                    <p className="muted">
+                      {material.document_code} · Bản {material.version} · Trang{' '}
+                      {material.page_start}–{material.page_end}
+                    </p>
+                  </div>
                   <div className="workspace-actions">
                     <button
-                      className="button button-primary"
-                      onClick={() => go('topic', { topicId: value.id })}
+                      className="button button-secondary"
+                      onClick={() => readMaterial(material)}
                     >
-                      {teacher ? 'Quản lý chủ đề' : 'Vào học'}
+                      {teacher ? 'Xem trước PDF' : 'Đọc tài liệu'}
+                    </button>
+                    {teacher && (
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() => removeMaterial(material)}
+                      >
+                        Bỏ liên kết
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {teacher && (
+                <>
+                  <div className="workspace-actions" style={{ marginTop: 15 }}>
+                    <button
+                      className="button button-secondary"
+                      onClick={() => {
+                        setUploadTarget({ topicId: topic.id, start: 1, end: '' })
+                        go('upload')
+                      }}
+                    >
+                      Upload tài liệu mới
                     </button>
                   </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {teacher && route.view === 'topic-editor' && (
-        <>
-          {heading(route.topicId ? 'Chỉnh chủ đề' : 'Thêm chủ đề')}
-          <TopicEditor
-            key={route.topicId || 'new'}
-            courseId={courseId}
-            topic={route.topicId ? topic : undefined}
-            topics={topics}
-            csrfToken={csrfToken}
-            onFailure={fail}
-            onSaved={(id) => {
-              changed()
-              go('topic', { topicId: id })
-            }}
-          />
-        </>
-      )}
-      {route.view === 'topic' && topic && (
-        <>
-          {heading(
-            `${topic.code} · ${topic.title}`,
-            <div className="workspace-actions">
-              {teacher ? (
-                <button className="button button-secondary" onClick={() => go('topic-editor')}>
-                  Chỉnh chủ đề
-                </button>
-              ) : null}
-            </div>,
-          )}
-          <div className="workspace-topic-detail">
-            <h3>Mục tiêu học tập</h3>
-            {topic.objectives.length ? (
-              <ul>
-                {topic.objectives.map((text, i) => (
-                  <li key={i}>{text}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="muted">Chưa có mục tiêu.</p>
-            )}
-            {!!topic.prerequisite_topic_ids.length && (
-              <p className="muted">
-                Kiến thức tiên quyết:{' '}
-                {topic.prerequisite_topic_ids
-                  .map((id) => topics.find((t) => t.id === id)?.code || '')
-                  .join(', ')}
+                  <details>
+                    <summary>Gắn tài liệu đã công bố</summary>
+                    <form className="learning-form" onSubmit={mapMaterial}>
+                      <fieldset disabled={busy}>
+                        <label>
+                          Phiên bản PDF đã công bố
+                          <select
+                            required
+                            value={mapping.version}
+                            onChange={(e) => setMapping((v) => ({ ...v, version: e.target.value }))}
+                          >
+                            <option value="">Chọn PDF</option>
+                            {sourceVersions.map((value) => (
+                              <option key={value.id} value={value.id}>
+                                {value.document.code} · Bản {value.version}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="learning-form-grid">
+                          <label>
+                            Từ trang
+                            <input
+                              required
+                              type="number"
+                              min={1}
+                              max={2000}
+                              value={mapping.start}
+                              onChange={(e) =>
+                                setMapping((v) => ({ ...v, start: Number(e.target.value) }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            Đến trang
+                            <input
+                              required
+                              type="number"
+                              min={mapping.start}
+                              max={2000}
+                              value={mapping.end}
+                              onChange={(e) =>
+                                setMapping((v) => ({ ...v, end: Number(e.target.value) }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <button className="button button-secondary">Gắn khoảng trang</button>
+                      </fieldset>
+                    </form>
+                  </details>
+                </>
+              )}
+              <h2>Quiz chủ đề</h2>
+              <p>
+                {topic.quiz
+                  ? `${topic.quiz.question_count} câu hỏi · Ngưỡng đạt ${topic.quiz.pass_percent}%`
+                  : 'Giảng viên chưa công bố quiz.'}
               </p>
-            )}
-            <h2>Tài liệu học tập</h2>
-            {!topic.materials.length && (
-              <p className="muted">Chưa có tài liệu gắn với chủ đề này.</p>
-            )}
-            {topic.materials.map((material) => (
-              <div className="workspace-row" key={material.order_index}>
-                <div>
-                  <strong>{material.title}</strong>
-                  <p className="muted">
-                    {material.document_code} · Bản {material.version} · Trang {material.page_start}–
-                    {material.page_end}
-                  </p>
-                </div>
-                <div className="workspace-actions">
-                  <button
-                    className="button button-secondary"
-                    onClick={() => readPdf(material.document_version_id, material.page_start)}
-                  >
-                    {teacher ? 'Xem trước PDF' : 'Đọc tài liệu'}
+              <div className="workspace-actions">
+                {teacher ? (
+                  <button className="button button-primary" onClick={() => go('quiz-editor')}>
+                    Biên soạn quiz
                   </button>
-                  {teacher && (
-                    <button
-                      className="text-button"
-                      disabled={busy}
-                      onClick={() => removeMaterial(material)}
-                    >
-                      Bỏ liên kết
+                ) : (
+                  topic.quiz && (
+                    <button className="button button-primary" onClick={() => go('quiz')}>
+                      Làm quiz
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </>
+        )}
+        {['topic', 'quiz', 'quiz-editor'].includes(route.view) && !topic && (
+          <p role="status">
+            {topicsLoading
+              ? 'Đang tải chủ đề…'
+              : 'Không tìm thấy chủ đề. Quay lại nội dung học phần để chọn lại.'}
+          </p>
+        )}
+        {teacher && topic && editorVisited === topic.id && (
+          <div hidden={route.view !== 'quiz-editor'}>
+            {heading(
+              'Biên soạn quiz: ' + topic.title,
+              <button className="button button-secondary" onClick={() => go('topic')}>
+                Về chủ đề
+              </button>,
+            )}
+            <TeacherQuizEditor
+              key={topic.id}
+              topic={topic}
+              documents={documents}
+              session={session}
+              onChanged={changed}
+              onFailure={fail}
+              onActionStart={() => setError('')}
+              onDirtyChange={setQuizDirty}
+              onBusyChange={setQuizBusy}
+            />
+          </div>
+        )}
+        {!teacher && topic && run && quizVisited === topic.id && (
+          <div className="workspace-quiz-screen" hidden={route.view !== 'quiz'}>
+            {heading(
+              'Quiz: ' + topic.title,
+              <button className="button button-secondary" onClick={() => go('topic')}>
+                Về chủ đề
+              </button>,
+            )}
+            <QuizPlayer
+              key={topic.id}
+              run={run}
+              topicId={topic.id}
+              quiz={topic.quiz}
+              csrfToken={csrfToken}
+              attempt={attempt}
+              onAttempt={updateAttempt}
+              onFailure={fail}
+              onCompleted={changed}
+              onDirtyChange={setQuizDirty}
+              onBusyChange={setQuizBusy}
+            />
+          </div>
+        )}
+        {route.view === 'pdf' && selectedVersion && (
+          <>
+            {route.topicId && topic && (
+              <div className="reader-topic-context">
+                <span>
+                  Chủ đề {topic.code} · {topic.title}
+                </span>
+                {topic.quiz && !teacher && (
+                  <button className="text-button" onClick={() => go('quiz')}>
+                    Chuyển sang quiz
+                  </button>
+                )}
+              </div>
+            )}
+            {fromCitation && (
+              <button
+                className="text-button return-to-chat"
+                onClick={() => {
+                  setChatOpen(true)
+                  setChatVisited(true)
+                }}
+              >
+                Trở lại hội thoại
+              </button>
+            )}
+            <div className="workspace-reader">
+              <Suspense fallback={<p role="status">Đang mở trình xem PDF…</p>}>
+                <PdfViewer
+                  key={`${teacher ? 'teacher' : run?.id}:${selectedVersion.id}`}
+                  runId={run?.id}
+                  versionId={selectedVersion.id}
+                  title={`${selectedVersion.document.code} · ${selectedVersion.document.title} · Bản ${selectedVersion.version}`}
+                  teacherPreview={teacher}
+                  userId={session.user.id}
+                  documentType={selectedVersion.document.document_type || 'lecture'}
+                  readingSession={readingSessions.current.get(selectedVersion.id)}
+                  suspended={narrow && chatOpen}
+                  backLabel={
+                    viewerReturn.current === 'quiz'
+                      ? 'Về quiz'
+                      : viewerReturn.current === 'topic'
+                        ? 'Về chủ đề'
+                        : viewerReturn.current === 'document'
+                          ? 'Về tài liệu'
+                          : viewerReturn.current === 'progress'
+                            ? 'Về lộ trình'
+                            : viewerReturn.current === 'topics'
+                              ? 'Về nội dung học phần'
+                              : 'Về thư viện'
+                  }
+                  initialPage={route.page || 1}
+                  onEvent={canWrite ? record : undefined}
+                  onPosition={(page) => {
+                    if (page !== (route.page || 1))
+                      replacePosition(
+                        routeHash({ ...route, page, actor: teacher ? 'teacher' : 'student' }),
+                      )
+                  }}
+                  onClose={() => go(viewerReturn.current)}
+                />
+              </Suspense>
+            </div>
+          </>
+        )}
+        {route.view === 'pdf' && !loading && !selectedVersion && (
+          <p className="notice notice-error">
+            Tài liệu chưa công bố, đã bị thu hồi hoặc không thuộc học phần này.
+          </p>
+        )}
+        {!teacher && run && guidanceVisited && (
+          <div hidden={route.view !== 'progress'}>
+            <GuidancePanel
+              key={`guidance:${run.id}`}
+              run={run}
+              csrfToken={csrfToken}
+              refresh={reload}
+              activityRefresh={activityReload}
+              topics={topics}
+              onExpired={onExpired}
+              onTopic={(id) => go('quiz', { topicId: id })}
+              onRead={readMaterial}
+            />
+          </div>
+        )}
+        {teacher && route.view === 'upload' && (
+          <>
+            {heading(
+              'Thêm tài liệu',
+              <button className="button button-secondary" onClick={() => go('materials')}>
+                Về danh sách
+              </button>,
+            )}
+            <form className="learning-form workspace-form" onSubmit={uploadPdf}>
+              <fieldset disabled={busy}>
+                <label>
+                  Mã tài liệu (ví dụ CH01)
+                  <input
+                    required
+                    pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
+                    maxLength={64}
+                    value={upload.code}
+                    onChange={(e) => setUpload((v) => ({ ...v, code: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Tên tài liệu
+                  <input
+                    required
+                    maxLength={200}
+                    value={upload.title}
+                    onChange={(e) => setUpload((v) => ({ ...v, title: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Tệp PDF · tối đa 100 MiB, 2.000 trang
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+                <DocumentSettings
+                  value={upload}
+                  onChange={(value) => setUpload((v) => ({ ...v, ...value }))}
+                />
+                <p className="muted">
+                  Giới hạn100MiB (104857600byte), tối đa2000trang. Upload chỉ lưu và kiểm tra PDF;
+                  chuẩn bị nguồn trợ giảng chạy riêng trong nền. Trang sử dụng số trang PDF từ1, có
+                  thể khác số in trên sách.
+                </p>
+                {file && <p className="muted">Đã chọn: {file.name}</p>}
+                <label>
+                  Gắn vào chủ đề sau khi công bố
+                  <select
+                    value={uploadTarget.topicId}
+                    onChange={(e) => setUploadTarget((v) => ({ ...v, topicId: e.target.value }))}
+                  >
+                    <option value="">Để gắn sau</option>
+                    {topics.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} · {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {uploadTarget.topicId && (
+                  <div className="learning-form-grid">
+                    <label>
+                      Từ trang
+                      <input
+                        type="number"
+                        min={1}
+                        max={2000}
+                        value={uploadTarget.start}
+                        onChange={(e) =>
+                          setUploadTarget((v) => ({ ...v, start: Number(e.target.value) }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Đến trang · để trống dùng hết PDF
+                      <input
+                        type="number"
+                        min={uploadTarget.start}
+                        max={2000}
+                        value={uploadTarget.end}
+                        onChange={(e) => setUploadTarget((v) => ({ ...v, end: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                )}
+                <button className="button button-primary" disabled={!file}>
+                  {busy ? 'Đang upload…' : 'Lưu nháp và xem trước'}
+                </button>
+              </fieldset>
+            </form>
+          </>
+        )}
+        {teacher &&
+          route.view === 'materials' &&
+          heading(
+            'Tài liệu',
+            <button
+              className="button button-primary"
+              onClick={() => {
+                setUploadTarget({ topicId: '', start: 1, end: '' })
+                go('upload')
+              }}
+            >
+              Thêm tài liệu
+            </button>,
+          )}
+        {teacher &&
+          (route.view === 'materials' || route.view === 'document') &&
+          !loading &&
+          !documents.length && (
+            <p className="workspace-empty">
+              Chưa có PDF. Thêm tài liệu để chuẩn bị nội dung học phần.
+            </p>
+          )}
+        {teacher &&
+          versions.map((version) => {
+            const detail = route.view === 'document' && route.versionId === version.id
+            const latest = version.document.versions[0]?.id === version.id
+            return (
+              <article
+                key={version.id}
+                hidden={!detail && !(route.view === 'materials' && latest)}
+                className={detail ? 'workspace-document-detail' : 'document-card'}
+              >
+                <div className="section-heading">
+                  <div>
+                    <h3>{version.document.title}</h3>
+                    <span className="rag-badge">
+                      {documentTypeLabels[version.document.document_type || 'lecture']}
+                    </span>
+                    <p className="muted">
+                      {version.document.code} · Bản {version.version} · {version.page_count} trang ·{' '}
+                      {version.document.status === 'published'
+                        ? 'Đã công bố'
+                        : version.document.status === 'draft'
+                          ? 'Bản nháp'
+                          : 'Đã lưu trữ'}
+                    </p>
+                  </div>
+                  {detail && (
+                    <button className="button button-secondary" onClick={() => go('materials')}>
+                      Về danh sách
                     </button>
                   )}
                 </div>
-              </div>
+                {detail && (
+                  <>
+                    <label>
+                      Phiên bản PDF
+                      <select
+                        className="document-version-picker"
+                        value={version.id}
+                        onChange={(e) => go('document', { versionId: e.target.value })}
+                      >
+                        {version.document.versions.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            Bản {v.version} · {v.page_count} trang
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="workspace-actions">
+                      <button
+                        className="button button-secondary"
+                        onClick={() => readPdf(version.id)}
+                      >
+                        Xem PDF
+                      </button>
+                      <button
+                        className="button button-secondary"
+                        disabled={busy}
+                        onClick={() => void setDocumentStatus(version.document, version.id)}
+                      >
+                        {' '}
+                        {version.document.status === 'published'
+                          ? 'Lưu trữ PDF'
+                          : 'Chỉ công bố PDF'}
+                      </button>
+                    </div>
+                    <details>
+                      <summary>Thêm phiên bản PDF</summary>
+                      <label>
+                        Tệp PDF mới
+                        <input
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          disabled={busy}
+                          onChange={(e) => {
+                            void addVersion(version.document, e.target.files?.[0])
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+                    </details>
+                    {pendingLink?.versionId === version.id && (
+                      <p className="notice">
+                        Sau khi công bố và dùng cho trợ giảng, tài liệu sẽ được gắn vào chủ đề đã
+                        chọn, trang {pendingLink.start}–{pendingLink.end}.
+                      </p>
+                    )}
+                  </>
+                )}
+                <DocumentActions
+                  document={version.document}
+                  csrfToken={csrfToken}
+                  onFailure={fail}
+                  onSaved={(updated, replaced) => {
+                    setDocuments((all) =>
+                      all.map((item) => (item.id === updated.id ? updated : item)),
+                    )
+                    setError('')
+                    setMessage(
+                      replaced
+                        ? 'Đã thay PDF và xóa file cũ. Kiểm tra, gắn vào chủ đề và công bố lại tài liệu.'
+                        : 'Đã cập nhật thông tin tài liệu.',
+                    )
+                    if (replaced) {
+                      setPendingLink((old) =>
+                        version.document.versions.some((v) => v.id === old?.versionId) ? null : old,
+                      )
+                      go('document', { versionId: updated.versions[0]?.id })
+                    }
+                    changed()
+                  }}
+                  onDeleted={() => {
+                    setDocuments((all) => all.filter((item) => item.id !== version.document.id))
+                    setPendingLink((old) =>
+                      version.document.versions.some((v) => v.id === old?.versionId) ? null : old,
+                    )
+                    setError('')
+                    setMessage('Đã xóa vĩnh viễn tài liệu và các file PDF.')
+                    changed()
+                    go('materials', { versionId: undefined })
+                  }}
+                />
+                <RagDocumentPanel
+                  versionId={version.id}
+                  documentStatus={version.document.status}
+                  csrfToken={csrfToken}
+                  topics={topics}
+                  pageCount={version.page_count}
+                  onExpired={onExpired}
+                  compact={!detail}
+                  onReview={() => go('document', { versionId: version.id })}
+                  onPublished={() => void afterPublished(version.id)}
+                />
+              </article>
+            )
+          })}
+        {!teacher && route.view === 'materials' && (
+          <section>
+            {heading('Giáo trình và tài liệu bổ sung')}
+            <p className="muted">
+              Các tài liệu chung của học phần, độc lập với bài giảng gắn theo chủ đề. Một số tài
+              liệu cũng được giảng viên cho phép dùng làm nguồn trợ giảng.
+            </p>
+            {(['textbook', 'supplement', 'lecture'] as const).map((kind) => (
+              <section key={kind}>
+                <h3>{documentTypeLabels[kind]}</h3>
+                {!documents.some((d) => (d.document_type || 'lecture') === kind) ? (
+                  <p className="muted">Chưa có tài liệu đã công bố trong nhóm này.</p>
+                ) : (
+                  documents
+                    .filter((d) => (d.document_type || 'lecture') === kind)
+                    .map((d) => (
+                      <article className="document-card" key={d.id}>
+                        <h4>{d.title}</h4>
+                        <p>{d.code}</p>
+                        {d.versions.map((v) => (
+                          <div className="workspace-actions" key={v.id}>
+                            <span>
+                              Bản{v.version} ·{v.page_count} trang
+                            </span>
+                            <button className="text-button" onClick={() => readPdf(v.id)}>
+                              Đọc {d.title} · bản {v.version}
+                            </button>
+                          </div>
+                        ))}
+                      </article>
+                    ))
+                )}
+              </section>
             ))}
-            {teacher && (
-              <>
-                <div className="workspace-actions" style={{ marginTop: 15 }}>
-                  <button
-                    className="button button-secondary"
-                    onClick={() => {
-                      setUploadTarget({ topicId: topic.id, start: 1, end: '' })
-                      go('upload')
-                    }}
-                  >
-                    Upload tài liệu mới
+          </section>
+        )}
+        {!teacher && run && route.view === 'results' && (
+          <section className="learning-history">
+            {heading('Kết quả và lịch sử bài làm')}
+            {!history.length ? (
+              <p className="muted">Chưa có bài làm.</p>
+            ) : (
+              history.map((value) => (
+                <div className="history-row" key={value.id}>
+                  <span>
+                    {topics.find((t) => t.id === value.topic_id)?.code} ·{' '}
+                    {value.status === 'completed'
+                      ? `${value.score_percent?.toFixed(1)}% · ${value.passed_for_attempt_version ? 'Đạt' : 'Chưa đạt'}`
+                      : 'Đang làm'}
+                    <small>{new Date(value.started_at).toLocaleString('vi-VN')}</small>
+                  </span>
+                  <button className="text-button" onClick={() => void resume(value)}>
+                    {value.status === 'completed' ? 'Xem kết quả' : 'Làm tiếp'}
                   </button>
                 </div>
-                <details>
-                  <summary>Gắn tài liệu đã công bố</summary>
-                  <form className="learning-form" onSubmit={mapMaterial}>
-                    <fieldset disabled={busy}>
-                      <label>
-                        Phiên bản PDF đã công bố
-                        <select
-                          required
-                          value={mapping.version}
-                          onChange={(e) => setMapping((v) => ({ ...v, version: e.target.value }))}
-                        >
-                          <option value="">Chọn PDF</option>
-                          {sourceVersions.map((value) => (
-                            <option key={value.id} value={value.id}>
-                              {value.document.code} · Bản {value.version}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="learning-form-grid">
-                        <label>
-                          Từ trang
-                          <input
-                            required
-                            type="number"
-                            min={1}
-                            max={2000}
-                            value={mapping.start}
-                            onChange={(e) =>
-                              setMapping((v) => ({ ...v, start: Number(e.target.value) }))
-                            }
-                          />
-                        </label>
-                        <label>
-                          Đến trang
-                          <input
-                            required
-                            type="number"
-                            min={mapping.start}
-                            max={2000}
-                            value={mapping.end}
-                            onChange={(e) =>
-                              setMapping((v) => ({ ...v, end: Number(e.target.value) }))
-                            }
-                          />
-                        </label>
-                      </div>
-                      <button className="button button-secondary">Gắn khoảng trang</button>
-                    </fieldset>
-                  </form>
-                </details>
-              </>
+              ))
             )}
-            <h2>Quiz chủ đề</h2>
-            <p>
-              {topic.quiz
-                ? `${topic.quiz.question_count} câu hỏi · Ngưỡng đạt ${topic.quiz.pass_percent}%`
-                : 'Giảng viên chưa công bố quiz.'}
-            </p>
-            <div className="workspace-actions">
-              {teacher ? (
-                <button className="button button-primary" onClick={() => go('quiz-editor')}>
-                  Biên soạn quiz
-                </button>
-              ) : (
-                topic.quiz && (
-                  <button className="button button-primary" onClick={() => go('quiz')}>
-                    Làm quiz
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-        </>
-      )}
-      {['topic', 'quiz', 'quiz-editor'].includes(route.view) && !topic && (
-        <p role="status">
-          {topicsLoading
-            ? 'Đang tải chủ đề…'
-            : 'Không tìm thấy chủ đề. Quay lại nội dung học phần để chọn lại.'}
-        </p>
-      )}
-      {teacher && topic && editorVisited === topic.id && (
-        <div hidden={route.view !== 'quiz-editor'}>
-          {heading(
-            'Biên soạn quiz: ' + topic.title,
-            <button className="button button-secondary" onClick={() => go('topic')}>
-              Về chủ đề
-            </button>,
-          )}
-          <TeacherQuizEditor
-            key={topic.id}
-            topic={topic}
-            documents={documents}
-            session={session}
-            onChanged={changed}
-            onFailure={fail}
-            onActionStart={() => setError('')}
-            onDirtyChange={setQuizDirty}
-            onBusyChange={setQuizBusy}
-          />
-        </div>
-      )}
-      {!teacher && topic && run && quizVisited === topic.id && (
-        <div className="workspace-quiz-screen" hidden={route.view !== 'quiz'}>
-          {heading(
-            'Quiz: ' + topic.title,
-            <button className="button button-secondary" onClick={() => go('topic')}>
-              Về chủ đề
-            </button>,
-          )}
-          <QuizPlayer
-            key={topic.id}
-            run={run}
-            topicId={topic.id}
-            quiz={topic.quiz}
-            csrfToken={csrfToken}
-            attempt={attempt}
-            onAttempt={updateAttempt}
-            onFailure={fail}
-            onCompleted={changed}
-            onDirtyChange={setQuizDirty}
-            onBusyChange={setQuizBusy}
-          />
-        </div>
-      )}
-      {route.view === 'pdf' && selectedVersion && (
-        <>
-          {heading(
-            selectedVersion.document.title,
-            <div className="workspace-actions">
-              <button className="button button-secondary" onClick={() => go(viewerReturn.current)}>
-                Về {viewerReturn.current === 'document' ? 'tài liệu' : 'chủ đề'}
-              </button>
-            </div>,
-          )}
-          <div className="workspace-reader">
-            <aside>
-              <h3>{topic?.title || 'Tài liệu học phần'}</h3>
-              {topic?.quiz && !teacher && (
-                <button className="button button-primary" onClick={() => go('quiz')}>
-                  Chuyển sang quiz
-                </button>
-              )}
-            </aside>
-            <Suspense fallback={<p role="status">Đang mở trình xem PDF…</p>}>
-              <PdfViewer
-                key={`${teacher ? 'teacher' : run?.id}:${selectedVersion.id}`}
-                runId={run?.id}
-                versionId={selectedVersion.id}
-                title={`${selectedVersion.document.code} · ${selectedVersion.document.title} · Bản ${selectedVersion.version}`}
-                teacherPreview={teacher}
-                initialPage={route.page || 1}
-                onEvent={canWrite ? record : undefined}
-                onPosition={(page) => {
-                  if (page !== (route.page || 1))
-                    replacePosition(
-                      routeHash({ ...route, page, actor: teacher ? 'teacher' : 'student' }),
-                    )
-                }}
-                onClose={() => go(viewerReturn.current)}
-              />
-            </Suspense>
-          </div>
-        </>
-      )}
-      {route.view === 'pdf' && !loading && !selectedVersion && (
-        <p className="notice notice-error">
-          Tài liệu chưa công bố, đã bị thu hồi hoặc không thuộc học phần này.
-        </p>
-      )}
-      {!teacher && run && guidanceVisited && (
-        <div hidden={route.view !== 'progress'}>
-          <GuidancePanel
-            key={`guidance:${run.id}`}
-            run={run}
-            csrfToken={csrfToken}
-            refresh={reload}
-            activityRefresh={activityReload}
-            topics={topics}
-            onExpired={onExpired}
-            onTopic={(id) => go('quiz', { topicId: id })}
-            onRead={(material) => readPdf(material.document_version_id, material.page_start)}
-          />
-        </div>
-      )}
+            <details>
+              <summary>Log học tập của tôi ({eventCount} sự kiện)</summary>
+              <p className="muted">
+                Log ghi trang đã hiển thị; không suy ra thời gian đọc hoặc mức độ hiểu bài.
+              </p>
+              {events.map((value) => (
+                <p key={value.id}>
+                  {value.type === 'page_view' ? `Xem trang ${value.pdf_page}` : 'Mở tài liệu'} ·{' '}
+                  {new Date(value.occurred_at).toLocaleString('vi-VN')}
+                </p>
+              ))}
+            </details>
+          </section>
+        )}
+        {teacher && route.view === 'report' && (
+          <section className="learning-report">
+            {heading(run ? 'Kết quả lớp · ' + run.code : 'Kết quả lớp học')}
+            {!run ? (
+              <p className="muted">Chọn lớp để xem kết quả.</p>
+            ) : !report.length && !loading ? (
+              <p className="muted">Chưa có sinh viên hoặc kết quả trong lớp.</p>
+            ) : (
+              report.map((value) => (
+                <article className="student-report" key={value.enrollment_id}>
+                  <strong>{value.display_name}</strong>
+                  <p>
+                    {value.student_email} ·{' '}
+                    {value.enrollment_status === 'active' ? 'Đang đăng ký' : 'Ngừng đăng ký'}
+                  </p>
+                  <p>
+                    {value.page_views} lượt xem trang · {value.attempt_count} bài làm
+                  </p>
+                  <p>
+                    Lộ trình {value.learning_path.revision} · {value.learning_path.steps.length}{' '}
+                    bước học/ôn
+                  </p>
+                  <div className="path-states">
+                    {value.learning_path.topic_states.map((item) => (
+                      <span className={`path-state path-${item.state}`} key={item.topic_id}>
+                        {item.topic_code}: {stateLabels[item.state]}
+                        {item.score_percent !== null && ` ${item.score_percent.toFixed(1)}%`}
+                      </span>
+                    ))}
+                  </div>
+                  {value.latest_results.map((result) => (
+                    <p key={result.id}>
+                      {topics.find((t) => t.id === result.topic_id)?.code} ·{' '}
+                      {result.score_percent?.toFixed(1)}% ·{' '}
+                      {result.passed_for_attempt_version ? 'Đạt bản đã làm' : 'Chưa đạt'}
+                      {!result.counts_for_current_mastery && ' · Có quiz mới'}
+                    </p>
+                  ))}
+                </article>
+              ))
+            )}
+          </section>
+        )}
+      </div>
       {!teacher && run && chatVisited && (
         <aside
           className="workspace-chat-container"
@@ -889,7 +1365,7 @@ export default function LearningWorkspace({
         >
           <div className="section-heading">
             <span>Trợ giảng · {run.course_title}</span>
-            <button className="text-button" onClick={() => setChatOpen(false)}>
+            <button className="text-button" onClick={closeChat}>
               Đóng trợ giảng
             </button>
           </div>
@@ -900,372 +1376,9 @@ export default function LearningWorkspace({
             onExpired={onExpired}
             topicId={chatTopic?.id}
             topicTitle={chatTopic?.title}
-            onRead={(citation) => readPdf(citation.document_version_id, citation.pdf_page)}
+            onRead={(citation) => readPdf(citation.document_version_id, citation.pdf_page, true)}
           />
         </aside>
-      )}
-      {teacher && route.view === 'upload' && (
-        <>
-          {heading(
-            'Thêm tài liệu',
-            <button className="button button-secondary" onClick={() => go('materials')}>
-              Về danh sách
-            </button>,
-          )}
-          <form className="learning-form workspace-form" onSubmit={uploadPdf}>
-            <fieldset disabled={busy}>
-              <label>
-                Mã tài liệu (ví dụ CH01)
-                <input
-                  required
-                  pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
-                  maxLength={64}
-                  value={upload.code}
-                  onChange={(e) => setUpload((v) => ({ ...v, code: e.target.value }))}
-                />
-              </label>
-              <label>
-                Tên tài liệu
-                <input
-                  required
-                  maxLength={200}
-                  value={upload.title}
-                  onChange={(e) => setUpload((v) => ({ ...v, title: e.target.value }))}
-                />
-              </label>
-              <label>
-                Tệp PDF · tối đa 100 MiB, 2.000 trang
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
-              </label>
-              <DocumentSettings
-                value={upload}
-                onChange={(value) => setUpload((v) => ({ ...v, ...value }))}
-              />
-              <p className="muted">
-                Giới hạn100MiB (104857600byte), tối đa2000trang. Upload chỉ lưu và kiểm tra PDF;
-                chuẩn bị nguồn trợ giảng chạy riêng trong nền. Trang sử dụng số trang PDF từ1, có
-                thể khác số in trên sách.
-              </p>
-              {file && <p className="muted">Đã chọn: {file.name}</p>}
-              <label>
-                Gắn vào chủ đề sau khi công bố
-                <select
-                  value={uploadTarget.topicId}
-                  onChange={(e) => setUploadTarget((v) => ({ ...v, topicId: e.target.value }))}
-                >
-                  <option value="">Để gắn sau</option>
-                  {topics.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.code} · {t.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {uploadTarget.topicId && (
-                <div className="learning-form-grid">
-                  <label>
-                    Từ trang
-                    <input
-                      type="number"
-                      min={1}
-                      max={2000}
-                      value={uploadTarget.start}
-                      onChange={(e) =>
-                        setUploadTarget((v) => ({ ...v, start: Number(e.target.value) }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Đến trang · để trống dùng hết PDF
-                    <input
-                      type="number"
-                      min={uploadTarget.start}
-                      max={2000}
-                      value={uploadTarget.end}
-                      onChange={(e) => setUploadTarget((v) => ({ ...v, end: e.target.value }))}
-                    />
-                  </label>
-                </div>
-              )}
-              <button className="button button-primary" disabled={!file}>
-                {busy ? 'Đang upload…' : 'Lưu nháp và xem trước'}
-              </button>
-            </fieldset>
-          </form>
-        </>
-      )}
-      {teacher &&
-        route.view === 'materials' &&
-        heading(
-          'Tài liệu',
-          <button
-            className="button button-primary"
-            onClick={() => {
-              setUploadTarget({ topicId: '', start: 1, end: '' })
-              go('upload')
-            }}
-          >
-            Thêm tài liệu
-          </button>,
-        )}
-      {teacher &&
-        (route.view === 'materials' || route.view === 'document') &&
-        !loading &&
-        !documents.length && (
-          <p className="workspace-empty">
-            Chưa có PDF. Thêm tài liệu để chuẩn bị nội dung học phần.
-          </p>
-        )}
-      {teacher &&
-        versions.map((version) => {
-          const detail = route.view === 'document' && route.versionId === version.id
-          const latest = version.document.versions[0]?.id === version.id
-          return (
-            <article
-              key={version.id}
-              hidden={!detail && !(route.view === 'materials' && latest)}
-              className={detail ? 'workspace-document-detail' : 'document-card'}
-            >
-              <div className="section-heading">
-                <div>
-                  <h3>{version.document.title}</h3>
-                  <span className="rag-badge">
-                    {documentTypeLabels[version.document.document_type || 'lecture']}
-                  </span>
-                  <p className="muted">
-                    {version.document.code} · Bản {version.version} · {version.page_count} trang ·{' '}
-                    {version.document.status === 'published'
-                      ? 'Đã công bố'
-                      : version.document.status === 'draft'
-                        ? 'Bản nháp'
-                        : 'Đã lưu trữ'}
-                  </p>
-                </div>
-                {detail && (
-                  <button className="button button-secondary" onClick={() => go('materials')}>
-                    Về danh sách
-                  </button>
-                )}
-              </div>
-              {detail && (
-                <>
-                  <label>
-                    Phiên bản PDF
-                    <select
-                      className="document-version-picker"
-                      value={version.id}
-                      onChange={(e) => go('document', { versionId: e.target.value })}
-                    >
-                      {version.document.versions.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          Bản {v.version} · {v.page_count} trang
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="workspace-actions">
-                    <button
-                      className="button button-secondary"
-                      onClick={() => readPdf(version.id, 1)}
-                    >
-                      Xem PDF
-                    </button>
-                    <button
-                      className="button button-secondary"
-                      disabled={busy}
-                      onClick={() => void setDocumentStatus(version.document, version.id)}
-                    >
-                      {' '}
-                      {version.document.status === 'published' ? 'Lưu trữ PDF' : 'Chỉ công bố PDF'}
-                    </button>
-                  </div>
-                  <details>
-                    <summary>Thêm phiên bản PDF</summary>
-                    <label>
-                      Tệp PDF mới
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        disabled={busy}
-                        onChange={(e) => {
-                          void addVersion(version.document, e.target.files?.[0])
-                          e.target.value = ''
-                        }}
-                      />
-                    </label>
-                  </details>
-                  {pendingLink?.versionId === version.id && (
-                    <p className="notice">
-                      Sau khi công bố và dùng cho trợ giảng, tài liệu sẽ được gắn vào chủ đề đã
-                      chọn, trang {pendingLink.start}–{pendingLink.end}.
-                    </p>
-                  )}
-                </>
-              )}
-              <DocumentActions
-                document={version.document}
-                csrfToken={csrfToken}
-                onFailure={fail}
-                onSaved={(updated, replaced) => {
-                  setDocuments((all) =>
-                    all.map((item) => (item.id === updated.id ? updated : item)),
-                  )
-                  setError('')
-                  setMessage(
-                    replaced
-                      ? 'Đã thay PDF và xóa file cũ. Kiểm tra, gắn vào chủ đề và công bố lại tài liệu.'
-                      : 'Đã cập nhật thông tin tài liệu.',
-                  )
-                  if (replaced) {
-                    setPendingLink((old) =>
-                      version.document.versions.some((v) => v.id === old?.versionId) ? null : old,
-                    )
-                    go('document', { versionId: updated.versions[0]?.id })
-                  }
-                  changed()
-                }}
-                onDeleted={() => {
-                  setDocuments((all) => all.filter((item) => item.id !== version.document.id))
-                  setPendingLink((old) =>
-                    version.document.versions.some((v) => v.id === old?.versionId) ? null : old,
-                  )
-                  setError('')
-                  setMessage('Đã xóa vĩnh viễn tài liệu và các file PDF.')
-                  changed()
-                  go('materials', { versionId: undefined })
-                }}
-              />
-              <RagDocumentPanel
-                versionId={version.id}
-                documentStatus={version.document.status}
-                csrfToken={csrfToken}
-                topics={topics}
-                pageCount={version.page_count}
-                onExpired={onExpired}
-                compact={!detail}
-                onReview={() => go('document', { versionId: version.id })}
-                onPublished={() => void afterPublished(version.id)}
-              />
-            </article>
-          )
-        })}
-      {!teacher && route.view === 'materials' && (
-        <section>
-          {heading('Giáo trình và tài liệu bổ sung')}
-          <p className="muted">
-            Các tài liệu chung của học phần, độc lập với bài giảng gắn theo chủ đề. Một số tài liệu
-            cũng được giảng viên cho phép dùng làm nguồn trợ giảng.
-          </p>
-          {(['textbook', 'supplement', 'lecture'] as const).map((kind) => (
-            <section key={kind}>
-              <h3>{documentTypeLabels[kind]}</h3>
-              {!documents.some((d) => (d.document_type || 'lecture') === kind) ? (
-                <p className="muted">Chưa có tài liệu đã công bố trong nhóm này.</p>
-              ) : (
-                documents
-                  .filter((d) => (d.document_type || 'lecture') === kind)
-                  .map((d) => (
-                    <article className="document-card" key={d.id}>
-                      <h4>{d.title}</h4>
-                      <p>{d.code}</p>
-                      {d.versions.map((v) => (
-                        <div className="workspace-actions" key={v.id}>
-                          <span>
-                            Bản{v.version} ·{v.page_count} trang
-                          </span>
-                          <button className="text-button" onClick={() => readPdf(v.id, 1)}>
-                            Đọc {d.title} · bản {v.version}
-                          </button>
-                        </div>
-                      ))}
-                    </article>
-                  ))
-              )}
-            </section>
-          ))}
-        </section>
-      )}
-      {!teacher && run && route.view === 'results' && (
-        <section className="learning-history">
-          {heading('Kết quả và lịch sử bài làm')}
-          {!history.length ? (
-            <p className="muted">Chưa có bài làm.</p>
-          ) : (
-            history.map((value) => (
-              <div className="history-row" key={value.id}>
-                <span>
-                  {topics.find((t) => t.id === value.topic_id)?.code} ·{' '}
-                  {value.status === 'completed'
-                    ? `${value.score_percent?.toFixed(1)}% · ${value.passed_for_attempt_version ? 'Đạt' : 'Chưa đạt'}`
-                    : 'Đang làm'}
-                  <small>{new Date(value.started_at).toLocaleString('vi-VN')}</small>
-                </span>
-                <button className="text-button" onClick={() => void resume(value)}>
-                  {value.status === 'completed' ? 'Xem kết quả' : 'Làm tiếp'}
-                </button>
-              </div>
-            ))
-          )}
-          <details>
-            <summary>Log học tập của tôi ({eventCount} sự kiện)</summary>
-            <p className="muted">
-              Log ghi trang đã hiển thị; không suy ra thời gian đọc hoặc mức độ hiểu bài.
-            </p>
-            {events.map((value) => (
-              <p key={value.id}>
-                {value.type === 'page_view' ? `Xem trang ${value.pdf_page}` : 'Mở tài liệu'} ·{' '}
-                {new Date(value.occurred_at).toLocaleString('vi-VN')}
-              </p>
-            ))}
-          </details>
-        </section>
-      )}
-      {teacher && route.view === 'report' && (
-        <section className="learning-report">
-          {heading(run ? 'Kết quả lớp · ' + run.code : 'Kết quả lớp học')}
-          {!run ? (
-            <p className="muted">Chọn lớp để xem kết quả.</p>
-          ) : !report.length && !loading ? (
-            <p className="muted">Chưa có sinh viên hoặc kết quả trong lớp.</p>
-          ) : (
-            report.map((value) => (
-              <article className="student-report" key={value.enrollment_id}>
-                <strong>{value.display_name}</strong>
-                <p>
-                  {value.student_email} ·{' '}
-                  {value.enrollment_status === 'active' ? 'Đang đăng ký' : 'Ngừng đăng ký'}
-                </p>
-                <p>
-                  {value.page_views} lượt xem trang · {value.attempt_count} bài làm
-                </p>
-                <p>
-                  Lộ trình {value.learning_path.revision} · {value.learning_path.steps.length} bước
-                  học/ôn
-                </p>
-                <div className="path-states">
-                  {value.learning_path.topic_states.map((item) => (
-                    <span className={`path-state path-${item.state}`} key={item.topic_id}>
-                      {item.topic_code}: {stateLabels[item.state]}
-                      {item.score_percent !== null && ` ${item.score_percent.toFixed(1)}%`}
-                    </span>
-                  ))}
-                </div>
-                {value.latest_results.map((result) => (
-                  <p key={result.id}>
-                    {topics.find((t) => t.id === result.topic_id)?.code} ·{' '}
-                    {result.score_percent?.toFixed(1)}% ·{' '}
-                    {result.passed_for_attempt_version ? 'Đạt bản đã làm' : 'Chưa đạt'}
-                    {!result.counts_for_current_mastery && ' · Có quiz mới'}
-                  </p>
-                ))}
-              </article>
-            ))
-          )}
-        </section>
       )}
     </section>
   )

@@ -71,8 +71,8 @@ test('student library + cross-topic textbook citation, hidden library source and
  const p=student.page,version=book.versions[0].id
  await login(student,env.DEMO_STUDENT_EMAIL,env.DEMO_STUDENT_PASSWORD,`/learn/${run.id}?course=${course.id}&view=materials`)
  await p.getByRole('heading',{name:'Giáo trình chính',exact:true}).waitFor()
- await p.getByRole('button',{name:'Đọc Giáo trình KNN · bản 1',exact:true}).click();await p.locator('.pdf-text').waitFor()
- await p.getByRole('button',{name:'Đóng tài liệu',exact:true}).click()
+ await p.getByRole('button',{name:'Đọc Giáo trình KNN · bản 1',exact:true}).click();await p.locator('.pdf-page[data-page="1"] .pdf-text').waitFor()
+ await p.getByRole('button',{name:'Về thư viện',exact:true}).click()
  await api(teacher,'PATCH',`/documents/${book.id}`,{show_in_learning:false})
  await p.goto(origin+`/learn/${run.id}?course=${course.id}&topic=${topics[0].id}&view=topic`,{waitUntil:'networkidle'})
  await p.getByRole('button',{name:'Hỏi trợ giảng',exact:true}).click()
@@ -83,7 +83,7 @@ test('student library + cross-topic textbook citation, hidden library source and
  const sessions=await api(student,'GET',`/course-runs/${run.id}/chat-sessions`),turn=(await api(student,'GET',`/chat-sessions/${sessions.items[0].id}/messages`)).items[0]
  assert.equal(turn.status,'answered');assert.equal(turn.citations[0].document_version_id,version)
  const page=turn.citations[0].pdf_page;assert.ok(page>=2&&page<=12)
- await citations.getByRole('button').first().click();await p.locator('.pdf-text').waitFor()
+ await citations.getByRole('button').first().click();await p.locator(`.pdf-page[data-page="${page}"] .pdf-text`).waitFor()
  assert.equal(await p.getByLabel('Trang PDF',{exact:true}).inputValue(),String(page))
  await shot(p,'student-textbook-citation.png')
  await api(teacher,'POST',`/document-versions/${version}/rag/disable`)

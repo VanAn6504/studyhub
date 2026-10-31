@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { request } from './api'
 import type { LearningDocument } from './learningTypes'
 import DocumentSettings, { defaultDocumentSettings } from './DocumentSettings'
+import ActionMenu from './workspace/ActionMenu'
 
 export default function DocumentActions({
   document,
@@ -95,13 +96,15 @@ export default function DocumentActions({
         >
           Chỉnh sửa thông tin
         </button>
-        <button
-          className="button button-secondary document-delete"
-          disabled={busy}
-          onClick={() => void remove()}
-        >
-          Xóa tài liệu
-        </button>
+        <ActionMenu label="Thao tác tài liệu">
+          <button
+            className="button button-secondary document-delete"
+            disabled={busy}
+            onClick={() => void remove()}
+          >
+            Xóa tài liệu
+          </button>
+        </ActionMenu>
       </div>
       {editing && (
         <form className="learning-form" onSubmit={save}>

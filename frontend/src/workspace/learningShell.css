@@ -1,0 +1,406 @@
+.action-menu {
+  position: relative;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  display: inline-block;
+  max-width: 100%;
+  font-size: 14px;
+}
+.action-menu > summary {
+  list-style: revert;
+  cursor: pointer;
+  padding: 9px 12px;
+  min-height: 40px;
+  border: 1px solid #cfdbd2;
+  border-radius: 8px;
+  background: #fff;
+  color: #244d3f;
+  font-weight: 600;
+  white-space: normal;
+}
+.action-menu-items {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  min-width: 210px;
+  max-width: min(320px, 85vw);
+  display: grid;
+  gap: 3px;
+  background: white;
+  padding: 8px;
+  border: 1px solid #cfdbd2;
+  border-radius: 9px;
+  box-shadow: 0 8px 24px #193d2b20;
+  z-index: 30;
+}
+.action-menu-items > * {
+  text-align: left;
+  white-space: normal;
+  padding: 9px !important;
+  margin: 0 !important;
+}
+.action-menu-items a {
+  display: block;
+}
+.site-workspace {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.site-workspace .site-header {
+  padding: 9px 20px;
+  gap: 20px;
+  flex: none;
+}
+.site-workspace .site-brand {
+  font-size: 21px;
+}
+.site-workspace .site-brand-mark {
+  height: 32px;
+  width: 32px;
+}
+.site-workspace .site-footer {
+  display: none;
+}
+.site-workspace-body {
+  flex: 1;
+  min-height: 0;
+}
+.site-workspace .course-dashboard.learning-shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+.site-workspace .learning-shell.nav-collapsed,
+.site-workspace .learning-shell:not(.has-course) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.site-workspace .learning-shell > .app-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+.site-workspace .learning-shell .workspace {
+  width: 100%;
+  max-width: none;
+  padding: 18px 22px;
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+}
+.course-navigation {
+  padding: 20px 14px;
+  border-right: 1px solid #d4dfd7;
+  background: #eef3ec;
+  overflow: auto;
+  min-height: 0;
+}
+.course-nav-title {
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0 8px 8px;
+  overflow-wrap: anywhere;
+}
+.course-navigation .muted,
+.course-drawer .muted {
+  margin: 0 8px 15px;
+  font-size: 13px;
+}
+.course-navigation .nav-item,
+.course-drawer .nav-item {
+  display: block;
+  color: #244d3f;
+  text-align: left;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  margin: 4px 0;
+  min-height: 44px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.course-navigation .nav-active,
+.course-drawer .nav-active {
+  background: #1d5748;
+  color: white;
+}
+.course-drawer {
+  margin: 0;
+  border: 0;
+  padding: 18px;
+  width: min(330px, 92vw);
+  max-width: 92vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  color: #20342e;
+  background: #f4f7f1;
+  overflow: auto;
+}
+.course-drawer::backdrop {
+  background: #17392c66;
+}
+.course-drawer .course-nav-title {
+  margin-top: 20px;
+}
+.site-workspace .course-context {
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.site-workspace .course-context h1 {
+  font-size: 23px;
+  margin: 0 0 5px;
+}
+.site-workspace .course-context p {
+  margin: 0;
+  font-size: 13px;
+}
+.site-workspace .course-context .workspace-actions {
+  gap: 6px;
+}
+.site-workspace .course-context .button {
+  font-size: 13px;
+  padding: 8px 10px;
+  min-height: 40px;
+}
+.site-workspace .learning-shell .learning-workspace {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  position: relative;
+}
+.learning-content {
+  min-width: 0;
+}
+.learning-workspace.has-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  align-items: start;
+}
+.learning-workspace .workspace-chat-container {
+  position: sticky;
+  inset: auto;
+  top: 0;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100dvh - 170px);
+  overflow: auto;
+  box-shadow: none;
+  border: 1px solid #cfdbd2;
+  border-radius: 10px;
+  padding: 14px;
+  background: white;
+  z-index: 8;
+}
+.learning-workspace .workspace-chat-container .chat-history {
+  max-height: none;
+  overflow: visible;
+}
+.workspace-chat-container .section-heading {
+  font-size: 14px;
+  align-items: center;
+}
+.site-workspace .learning-shell.is-reading .workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 16px;
+}
+.site-workspace .is-reading .course-context {
+  margin-bottom: 10px;
+  flex: none;
+}
+.site-workspace .is-reading .course-context h1 {
+  font-size: 16px;
+  margin: 0;
+}
+.site-workspace .is-reading .course-context p {
+  font-size: 12px;
+}
+.site-workspace .is-reading .learning-workspace {
+  min-height: 0;
+  flex: 1;
+}
+.site-workspace .is-reading .learning-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.site-workspace .is-reading .course-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.site-workspace .is-reading .workspace-reader {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.site-workspace .is-reading .workspace-reader > .reader-v2 {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+.site-workspace .is-reading .workspace-chat-container {
+  position: relative;
+  top: auto;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+}
+.site-workspace .is-reading .learning-workspace.has-chat {
+  align-items: stretch;
+}
+.return-to-chat {
+  align-self: flex-start;
+  margin-bottom: 5px;
+}
+.reader-topic-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+  flex: none;
+}
+.reader-topic-context .text-button {
+  min-height: 32px;
+}
+.site-workspace:has(.reader-v2.is-focused)
+  :is(
+    .site-header,
+    .site-skip,
+    .course-navigation,
+    .course-context,
+    .workspace-breadcrumb,
+    .workspace-chat-container
+  ) {
+  display: none !important;
+}
+.site-workspace:has(.reader-v2.is-focused) .learning-content > :not(.workspace-reader) {
+  display: none !important;
+}
+.document-delete {
+  color: #9b3026 !important;
+  border-color: #d6a69f !important;
+}
+.quiz-save-status {
+  margin: 14px 0;
+  padding: 12px;
+  background: #eef4ed;
+  border-radius: 8px;
+}
+.quiz-question.is-unanswered legend::after {
+  content: ' · Chưa trả lời';
+  font-size: 13px;
+  font-weight: 500;
+  color: #7c5314;
+}
+.quiz-submit-dialog {
+  max-width: min(480px, 92vw);
+  border: 1px solid #cbd7ce;
+  border-radius: 14px;
+  padding: 24px;
+  color: #20342e;
+}
+.quiz-submit-dialog::backdrop {
+  background: #17392c66;
+}
+@media (max-width: 1000px) {
+  .site-workspace .course-dashboard.learning-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .learning-workspace.has-chat {
+    display: block;
+  }
+  .learning-workspace.mobile-chat-active {
+    min-height: 450px;
+  }
+  .mobile-chat-active .learning-content {
+    visibility: hidden;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .learning-workspace.mobile-chat-active .workspace-chat-container {
+    position: relative;
+    height: 100%;
+    max-height: none;
+    min-height: 400px;
+  }
+  .site-workspace .is-reading .mobile-chat-active {
+    min-height: 0;
+  }
+  .site-workspace .is-reading .mobile-chat-active .workspace-chat-container {
+    min-height: 0;
+    position: absolute;
+    inset: 0;
+  }
+  .site-workspace .site-menu-button {
+    min-height: 42px;
+  }
+  .site-workspace .course-context h1 {
+    font-size: 19px;
+  }
+  .site-workspace .learning-shell .workspace {
+    padding: 14px;
+  }
+  .site-workspace .is-reading .course-context h1 {
+    font-size: 14px;
+  }
+}
+@media (max-width: 600px) {
+  .site-workspace .site-header {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+  .site-workspace .learning-shell.is-reading .workspace {
+    padding: 8px;
+  }
+  .site-workspace .course-context {
+    gap: 8px;
+  }
+  .site-workspace .is-reading .course-context {
+    margin-bottom: 7px;
+  }
+  .site-workspace .course-context .workspace-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .site-workspace .course-context .button {
+    min-height: 42px;
+    font-size: 12px;
+  }
+  .site-workspace .is-reading .course-context p {
+    font-size: 11px;
+  }
+  .site-workspace .is-reading .course-context h1 {
+    font-size: 13px;
+  }
+  .site-workspace .action-menu > summary {
+    min-height: 42px;
+  }
+  .site-workspace .workspace-breadcrumb {
+    font-size: 13px;
+    gap: 6px;
+  }
+  .site-workspace .workspace-topic-detail {
+    padding: 15px;
+  }
+}

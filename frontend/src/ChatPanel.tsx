@@ -267,6 +267,7 @@ export default function ChatPanel({
           <label>
             Câu hỏi từ PDF · tối đa 2000 ký tự
             <textarea
+              aria-label="Câu hỏi từ PDF · tối đa 2000 ký tự"
               rows={3}
               required
               maxLength={2000}

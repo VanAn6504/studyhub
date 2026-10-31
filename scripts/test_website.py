@@ -43,6 +43,8 @@ def main():
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--keep-db', action='store_true', help='Keep successful test data for local inspection.')
+    parser.add_argument('--suite', choices=('all','workspace','website'), default='all', help='Select the affected browser suite.')
+    parser.add_argument('--test-name-pattern', help='Forward a targeted Node test-name-pattern.')
     args = parser.parse_args()
     env_file = dotenv_values(ROOT / '.env')
     source = make_url(os.environ.get('DATABASE_URL') or env_file['DATABASE_URL'])
@@ -100,7 +102,9 @@ def main():
         if os.name == 'nt':
             child.setdefault('PLAYWRIGHT_CHANNEL', 'msedge')
         print('Running website E2E against an isolated _test database and local temporary servers.', flush=True)
-        result = subprocess.run(['node', '--test', 'tests/pdf-workspace.test.cjs', 'tests/website-p0.e2e.cjs'], cwd=ROOT / 'frontend', env=child, creationflags=flags, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+        files = (['tests/pdf-workspace.test.cjs'] if args.suite == 'workspace' else ['tests/website-p0.e2e.cjs'] if args.suite == 'website' else ['tests/pdf-workspace.test.cjs','tests/website-p0.e2e.cjs'])
+        pattern = ['--test-name-pattern='+args.test_name_pattern] if args.test_name_pattern else []
+        result = subprocess.run(['node', '--test', *pattern, *files], cwd=ROOT / 'frontend', env=child, creationflags=flags, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
         exit_code = result.returncode
         (output / 'e2e.log').write_text(result.stdout, encoding='utf-8')
         print(result.stdout, flush=True)

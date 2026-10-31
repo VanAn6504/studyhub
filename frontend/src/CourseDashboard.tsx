@@ -14,10 +14,12 @@ import {
 } from './website/navigation'
 import type { NavigationGuard, WorkspaceRoute } from './workspaceNavigation'
 import './workspace.css'
+import CourseNavigation, { useNarrowReader } from './workspace/CourseNavigation'
+import ActionMenu from './workspace/ActionMenu'
+import './workspace/learningShell.css'
 
 export default function CourseDashboard({
   session,
-  onLogout,
   onExpired,
 }: {
   session: Session
@@ -43,6 +45,10 @@ export default function CourseDashboard({
   const [topicReload, setTopicReload] = useState(0)
   const [busy, setBusy] = useState(false)
   const [chatSignal, setChatSignal] = useState(0)
+  const [collapsed, setCollapsed] = useState(false),
+    [drawer, setDrawer] = useState(false)
+  const narrow = useNarrowReader()
+  useEffect(() => setDrawer(false), [route.view, route.courseId, route.runId])
   const [courseDraft, setCourseDraft] = useState({ code: '', title: '' })
   const [classDraft, setClassDraft] = useState({
     code: '',
@@ -203,19 +209,6 @@ export default function CourseDashboard({
   const go = (view: WorkspaceRoute['view'], fields: Partial<WorkspaceRoute> = {}) =>
     void navigate({ ...route, view, ...fields })
   const changed = useCallback(() => setTopicReload((value) => value + 1), [])
-  async function logout() {
-    if (guard.current && !(await guard.current(null))) return
-    setBusy(true)
-    try {
-      await request('/auth/logout', { method: 'POST', csrfToken: session.csrf_token })
-      replacePosition('/workspace?view=home')
-      onLogout()
-    } catch (value) {
-      fail(value)
-    } finally {
-      setBusy(false)
-    }
-  }
   async function createCourse(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
@@ -262,75 +255,52 @@ export default function CourseDashboard({
   }
   const items: [WorkspaceRoute['view'], string][] = teacher
     ? [
+        ['overview', 'Tổng quan học phần'],
         ['topics', 'Chủ đề'],
         ['materials', 'Tài liệu'],
         ['classes', 'Lớp học'],
         ['report', 'Kết quả'],
       ]
     : [
+        ['overview', 'Tổng quan học phần'],
         ['topics', 'Nội dung học phần'],
         ['materials', 'Giáo trình và tài liệu bổ sung'],
         ['progress', 'Lộ trình & tiến độ'],
         ['results', 'Kết quả'],
       ]
   const inCourse = route.view !== 'home' && route.view !== 'new-course'
-  const active = ['topic', 'quiz', 'quiz-editor', 'topic-editor', 'pdf'].includes(route.view)
-    ? 'topics'
-    : ['upload', 'document'].includes(route.view)
+  const active =
+    route.view === 'pdf' && ['materials', 'document'].includes(route.returnView || '')
       ? 'materials'
-      : route.view === 'new-class'
-        ? 'classes'
-        : route.view
+      : route.view === 'pdf' && route.returnView === 'progress'
+        ? 'progress'
+        : ['topic', 'quiz', 'quiz-editor', 'topic-editor', 'pdf'].includes(route.view)
+          ? 'topics'
+          : ['upload', 'document'].includes(route.view)
+            ? 'materials'
+            : route.view === 'new-class'
+              ? 'classes'
+              : route.view
   return (
-    <div className="app-shell course-dashboard">
-      <aside className="sidebar">
-        <strong className="workspace-brand">StudyHub</strong>
-        <p className="sidebar-label">{teacher ? 'KHÔNG GIAN GIẢNG DẠY' : 'KHÔNG GIAN HỌC TẬP'}</p>
-        <button
-          className={`nav-item ${!inCourse ? 'nav-active' : ''}`}
-          onClick={() => go('home')}
-          disabled={busy}
-        >
-          Học phần của tôi
-        </button>
-        {inCourse && course && (
-          <nav aria-label="Điều hướng học phần">
-            <p className="sidebar-label">{course.code || course.title}</p>
-            {items.map(([view, title]) => (
-              <button
-                key={view}
-                className={`nav-item ${active === view ? 'nav-active' : ''}`}
-                onClick={() => go(view)}
-                disabled={busy}
-              >
-                {title}
-              </button>
-            ))}
-          </nav>
-        )}
-      </aside>
+    <div
+      className={`app-shell course-dashboard learning-shell ${inCourse && course ? 'has-course' : ''} ${route.view === 'pdf' ? 'is-reading' : ''} ${collapsed ? 'nav-collapsed' : ''}`}
+    >
+      {inCourse && course && (
+        <CourseNavigation
+          title={course.title}
+          classCode={run?.code}
+          items={items}
+          active={active}
+          collapsed={collapsed}
+          drawer={drawer}
+          onClose={() => setDrawer(false)}
+          onNavigate={go}
+        />
+      )}
+
       <div className="app-body">
-        <header className="topbar">
-          <strong className="workspace-mobile-brand">StudyHub</strong>
-          <span className="topbar-context">
-            {teacher ? 'Không gian giảng viên' : 'Không gian sinh viên'}
-          </span>
-          <div className="account">
-            <div>
-              <strong>{session.user.display_name}</strong>
-              <span>{teacher ? 'Giảng viên' : 'Sinh viên'}</span>
-            </div>
-            <button
-              className="button button-secondary"
-              onClick={() => void logout()}
-              disabled={busy}
-            >
-              Đăng xuất
-            </button>
-          </div>
-        </header>
         <main className="workspace" id="main-content">
-          {route.view !== 'home' && (
+          {route.view !== 'home' && route.view !== 'pdf' && (
             <div className="workspace-breadcrumb">
               <button className="text-button" onClick={() => go('home')}>
                 Học phần của tôi
@@ -462,7 +432,7 @@ export default function CourseDashboard({
           )}
           {inCourse && course && (
             <>
-              <div className="section-heading">
+              <div className="section-heading course-context">
                 <div>
                   <h1>{course.title}</h1>
                   <p className="muted">
@@ -485,43 +455,49 @@ export default function CourseDashboard({
                     )}
                 </div>
                 <div className="workspace-actions">
+                  <button
+                    className="button button-secondary"
+                    aria-expanded={narrow ? drawer : !collapsed}
+                    aria-controls={narrow ? 'learning-drawer' : 'learning-navigation'}
+                    aria-label={narrow ? 'Điều hướng học phần' : undefined}
+                    onClick={() => (narrow ? setDrawer(true) : setCollapsed((v) => !v))}
+                  >
+                    {narrow
+                      ? 'Điều hướng'
+                      : collapsed
+                        ? 'Điều hướng học phần'
+                        : 'Thu gọn điều hướng'}
+                  </button>
                   {!teacher && run && (
                     <button
                       className="button button-secondary"
+                      data-chat-opener
                       onClick={() => setChatSignal((v) => v + 1)}
                     >
                       Hỏi trợ giảng
                     </button>
                   )}
-                  <button
-                    className="button button-secondary"
-                    onClick={() => {
-                      changed()
-                      setReload((v) => v + 1)
-                    }}
-                  >
-                    Làm mới học phần
-                  </button>
+                  <ActionMenu label={route.view === 'pdf' ? 'Tùy chọn' : 'Tùy chọn học phần'}>
+                    <button
+                      className="button button-secondary"
+                      onClick={() => {
+                        changed()
+                        setReload((v) => v + 1)
+                      }}
+                    >
+                      Làm mới học phần
+                    </button>
+                    {teacher && (
+                      <>
+                        <Link to={`/teaching/courses/${course.id}/overview`}>
+                          Giới thiệu công khai
+                        </Link>
+                        <Link to="/teaching/classes">Tuyển sinh các lớp</Link>
+                      </>
+                    )}
+                  </ActionMenu>
                 </div>
               </div>
-              <nav className="workspace-mobile-tabs" aria-label="Các phần của học phần">
-                {items.map(([view, title]) => (
-                  <button
-                    className="button button-secondary"
-                    key={view}
-                    aria-pressed={active === view}
-                    onClick={() => go(view)}
-                  >
-                    {title}
-                  </button>
-                ))}
-              </nav>
-              {teacher && (
-                <div className="site-actions">
-                  <Link to={`/teaching/courses/${course.id}/overview`}>Giới thiệu công khai</Link>
-                  <Link to="/teaching/classes">Tuyển sinh các lớp</Link>
-                </div>
-              )}
               {((!teacher && courseRuns.length > 1) || (teacher && route.view === 'report')) && (
                 <label className="workspace-class-selector">
                   Lớp học
@@ -617,7 +593,10 @@ export default function CourseDashboard({
             </p>
           )}
           {course && (teacher || run) && (
-            <div hidden={!inCourse || route.view === 'classes' || route.view === 'new-class'}>
+            <div
+              className="course-content"
+              hidden={!inCourse || route.view === 'classes' || route.view === 'new-class'}
+            >
               <LearningWorkspace
                 key={`${course.id}:${teacher ? 'teacher' : run?.id || ''}`}
                 courseId={course.id}

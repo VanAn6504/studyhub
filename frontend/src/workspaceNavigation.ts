@@ -1,4 +1,5 @@
 export type WorkspaceView =
+  | 'overview'
   | 'topics'
   | 'topic'
   | 'pdf'
@@ -18,9 +19,11 @@ export type WorkspaceRoute = {
   topicId?: string
   versionId?: string
   page?: number
+  returnView?: WorkspaceView
 }
 export type NavigationGuard = (next: WorkspaceRoute | null) => Promise<boolean>
 const views = new Set([
+  'overview',
   'topics',
   'topic',
   'pdf',
@@ -73,6 +76,18 @@ export function readWorkspaceRoute(value = location.href): WorkspaceRoute {
       params.get('class') || (url.pathname.startsWith('/learn/') ? url.pathname.split('/')[2] : ''),
     topicId: params.get('topic') || undefined,
     versionId: params.get('document') || undefined,
+    returnView: [
+      'topics',
+      'topic',
+      'materials',
+      'document',
+      'quiz',
+      'progress',
+      'results',
+      'overview',
+    ].includes(params.get('from') || '')
+      ? (params.get('from') as WorkspaceView)
+      : undefined,
     page: Math.min(2000, Math.max(1, Math.floor(Number(params.get('page')) || 1))),
   }
 }
@@ -83,6 +98,7 @@ export function routeHash(route: WorkspaceRoute) {
   if (route.topicId) params.set('topic', route.topicId)
   if (route.versionId) params.set('document', route.versionId)
   if (route.page) params.set('page', String(route.page))
+  if (route.view === 'pdf' && route.returnView) params.set('from', route.returnView)
   const path =
     route.view === 'new-course'
       ? '/teaching/new-course'

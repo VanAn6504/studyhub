@@ -30,6 +30,23 @@ export default function QuizPlayer({
   const [message, setMessage] = useState('')
   const [answers, setAnswers] = useState<Record<string, string | null>>({})
   const [loadedAttempt, setLoadedAttempt] = useState<Attempt | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const submitDialog = useRef<HTMLDialogElement>(null),
+    retrySubmit = useRef(false)
+  const dirty =
+    !!attempt &&
+    attempt.status === 'in_progress' &&
+    attempt.items.some(
+      (item) => (answers[item.quiz_version_item_id] ?? null) !== item.selected_option,
+    )
+  const unanswered =
+    attempt?.items.filter((item) => !answers[item.quiz_version_item_id]).length || 0
+  useEffect(() => {
+    if (dirty && saveState === 'saved') {
+      setSaveState('idle')
+      setMessage('')
+    }
+  }, [dirty, saveState])
   const key = useRef('')
   useEffect(
     () => () => {
@@ -81,6 +98,8 @@ export default function QuizPlayer({
   }
   async function save(submit: boolean) {
     if (!attempt) return
+    retrySubmit.current = submit
+    setSaveState('saving')
     setBusy(true)
     setMessage('')
     try {
@@ -105,7 +124,9 @@ export default function QuizPlayer({
         onAttempt(completed)
         onCompleted()
       } else setMessage('Đã lưu bài làm. Bạn có thể quay lại làm tiếp.')
+      setSaveState('saved')
     } catch (failure) {
+      setSaveState('error')
       onFailure(failure)
     } finally {
       setBusy(false)
@@ -113,6 +134,7 @@ export default function QuizPlayer({
   }
   async function reload() {
     if (!attempt) return
+    if (dirty && !window.confirm('Tải bài đã lưu sẽ bỏ các lựa chọn chưa lưu. Tiếp tục?')) return
     setBusy(true)
     try {
       onAttempt(await request<Attempt>(`/attempts/${attempt.id}`))
@@ -150,6 +172,11 @@ export default function QuizPlayer({
           className="button button-secondary"
           disabled={busy}
           onClick={() => {
+            if (
+              dirty &&
+              !window.confirm('Bài làm có lựa chọn chưa lưu. Đóng và bỏ các lựa chọn chưa lưu?')
+            )
+              return
             onAttempt(null)
             setMessage('')
           }}
@@ -171,7 +198,7 @@ export default function QuizPlayer({
       )}
       {attempt.items.map((item, index) => (
         <fieldset
-          className="quiz-question"
+          className={`quiz-question ${!completed && !answers[item.quiz_version_item_id] ? 'is-unanswered' : ''}`}
           key={item.quiz_version_item_id}
           disabled={busy || completed || !canWrite}
         >
@@ -224,25 +251,80 @@ export default function QuizPlayer({
         </p>
       )}
       {!completed && (
-        <div className="form-actions">
-          <button className="button button-secondary" disabled={busy} onClick={reload}>
-            Tải bài đã lưu
-          </button>
-          <button
-            className="button button-secondary"
-            disabled={busy || !canWrite}
-            onClick={() => save(false)}
+        <>
+          <div className="quiz-save-status" role="status">
+            {saveState === 'saving'
+              ? 'Đang lưu bài làm…'
+              : saveState === 'error'
+                ? 'Chưa hoàn tất lưu/nộp. Các lựa chọn vẫn còn trên màn hình.'
+                : dirty
+                  ? 'Có lựa chọn chưa lưu.'
+                  : 'Các lựa chọn hiện tại đã được lưu trên server.'}
+            <span>
+              {' '}
+              Còn {unanswered}/{attempt.items.length} câu chưa trả lời.
+            </span>
+            {saveState === 'error' && (
+              <button
+                className="text-button"
+                disabled={busy || !canWrite}
+                onClick={() => save(retrySubmit.current)}
+              >
+                Thử lưu/nộp lại
+              </button>
+            )}
+          </div>
+          <div className="form-actions">
+            <button className="button button-secondary" disabled={busy} onClick={reload}>
+              Tải bài đã lưu
+            </button>
+            <button
+              className="button button-secondary"
+              disabled={busy || !canWrite}
+              onClick={() => save(false)}
+            >
+              Lưu bài làm
+            </button>
+            <button
+              className="button button-primary"
+              disabled={busy || !canWrite}
+              onClick={() => submitDialog.current?.showModal()}
+            >
+              {busy ? 'Đang xử lý…' : 'Nộp và xem kết quả'}
+            </button>
+          </div>
+          <dialog
+            className="quiz-submit-dialog"
+            ref={submitDialog}
+            aria-labelledby={`submit-${topicId}`}
           >
-            Lưu bài làm
-          </button>
-          <button
-            className="button button-primary"
-            disabled={busy || !canWrite}
-            onClick={() => save(true)}
-          >
-            {busy ? 'Đang xử lý…' : 'Nộp và xem kết quả'}
-          </button>
-        </div>
+            <h3 id={`submit-${topicId}`}>Xác nhận nộp bài</h3>
+            <p>
+              {unanswered
+                ? `Còn ${unanswered} câu chưa trả lời. Các câu này sẽ được chấm theo quy định hiện tại.`
+                : 'Bạn đã chọn đáp án cho mọi câu.'}
+            </p>
+            <p>Sau khi nộp, bài làm này không thể sửa. Bạn vẫn có thể làm lại bằng lượt mới.</p>
+            <div className="form-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => submitDialog.current?.close()}
+              >
+                Tiếp tục làm bài
+              </button>
+              <button
+                className="button button-primary"
+                disabled={busy || !canWrite}
+                onClick={() => {
+                  submitDialog.current?.close()
+                  void save(true)
+                }}
+              >
+                Xác nhận nộp
+              </button>
+            </div>
+          </dialog>
+        </>
       )}
     </div>
   )

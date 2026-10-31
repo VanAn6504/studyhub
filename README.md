@@ -306,6 +306,18 @@ backend/.venv/Scripts/python.exe scripts/test_rag_documents.py
 
 Yêu cầu Docker Desktop/Postgres đang chạy, môi trường Python dev, `frontend/node_modules` có Playwright và model đã chuẩn bị tại `.local/embedding`. Trên Windows mặc định dùng Edge; có thể đặt `PLAYWRIGHT_CHANNEL` khác. Runner tạo DB `_test`, PDF tổng hợp, bản sao model và container riêng; không ghi vào học phần thật. Bao gồm upload21MiB, phạm vi/chủ đề, citation, thu hồi, scan/phiên chép, thiếu model/thử lại và responsive/bàn phím. HTTP Gemini được giả lập trên loopback, không dùng key thật hoặc gửi PDF ra Google; đây là kiểm thử hợp đồng/luồng, không chứng minh chất lượng sinh câu trả lời. Bằng chứng nằm tại `.local/pdf-rag-20261030/runs/`; DB thành công được xóa, DB thất bại giữ lại để chẩn đoán. `--skip-build` chỉ dùng khi image khớp mã nguồn hiện tại.
 
+## Không gian học và trình đọc
+
+Trong học phần, dùng sidebar **Tổng quan học phần / Nội dung học phần / Giáo trình và tài liệu bổ sung / Lộ trình & tiến độ / Kết quả**. Có thể thu gọn sidebar; mobile mở **Điều hướng học phần** dưới dạng drawer. Các thao tác cấu hình/làm mới nằm trong **Tùy chọn học phần**. Mở trợ giảng bên cạnh nội dung trên desktop; mobile chuyển giữa tài liệu và hội thoại. Hội thoại và câu hỏi đang nhập được giữ khi đóng panel hoặc xem citation; dùng **Trở lại hội thoại** sau khi xem nguồn.
+
+Viewer mặc định **Từng trang** cho bài giảng, **Cuộn liên tục** cho giáo trình/bổ sung; nhớ lựa chọn theo tài khoản/lớp/loại tài liệu trên trình duyệt. Nhập số trang rồi Enter, chọn mục lục thật hoặc danh sách trang khi PDF không có outline; có zoom, vừa chiều rộng/vừa trang, tìm văn bản bằng Enter/Tìm, chế độ tập trung và fullscreen nếu trình duyệt hỗ trợ. Trang PDF tính từ1, có thể khác số in trên sách. Lớp chữ cho phép chọn/copy; trang ảnh/scan chưa có OCR. Vị trí cục bộ tách tài khoản/lớp/phiên bản; resume server hiện có tiếp tục lưu trang gần nhất. Vị trí đọc và số lượt xem không chứng minh đã hiểu bài.
+
+Chỉ trang đã render và nhìn thấy ổn định500ms mới ghi hoạt động; preload không ghi lượt xem. Chế độ cuộn chỉ vẽ các trang gần vùng đọc và giải phóng canvas cũ. Teacher preview không ghi log sinh viên. Quiz có trạng thái lưu, giữ lựa chọn khi lỗi và nút thử lại; xác nhận trước khi nộp. Không đổi ngưỡng đạt, cách chấm hoặc ý nghĩa dữ liệu cũ.
+
+Tìm kiếm chỉ bắt đầu khi xác nhận, có thể dừng; bỏ dấu/hoa thường khi đối chiếu và tô phần chữ tìm được. Giới hạn xử lý:100.000ký tự mỗi trang,10.000kết quả và cache chữ4triệu ký tự. Tài liệu cực dày chữ có thể thiếu kết quả vượt giới hạn; đây không phải OCR. Lựa chọn chế độ/vị trí cục bộ có thể mất khi xóa dữ liệu trình duyệt; resume server vẫn giữ trang gần nhất của lớp.
+
+Runner UI hỗ trợ chọn phạm vi: `scripts/test_website.py --suite workspace` hoặc `--suite website --test-name-pattern "guest search"`; mặc định vẫn là cả hai. Các UI workspace dùng PDF/API fixture, không ghi database thật. Có thể đặt `STUDYHUB_READER_PDF` trỏ giáo trình392trang local để chạy ca reader thực tế trong `frontend/tests/pdf-workspace.test.cjs`; không đưa PDF vào Git.
+
 ## Tài liệu để bắt đầu code
 
 1. [Học phần mẫu và kiểm tra nguồn](docs/hoc_phan_mau.md).

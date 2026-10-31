@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { Session } from '../api'
 import { Link } from './ui'
 import { safeReturn } from './navigation'
+import ActionMenu from '../workspace/ActionMenu'
 
 export default function SiteLayout({
   session,
@@ -75,16 +76,33 @@ export default function SiteLayout({
                 : 'Điều hướng chính'
             }
           >
-            {links.map(([to, label]) => (
-              <Link key={to} to={to} aria-current={path === to ? 'page' : undefined}>
-                {label}
-              </Link>
-            ))}
+            {links
+              .filter(
+                ([to]) =>
+                  !workspace ||
+                  (teacher
+                    ? ['/teaching', '/teaching/courses']
+                    : ['/dashboard', '/my-courses', '/courses']
+                  ).includes(to),
+              )
+              .map(([to, label]) => (
+                <Link key={to} to={to} aria-current={path === to ? 'page' : undefined}>
+                  {label}
+                </Link>
+              ))}
           </nav>
           <nav aria-label="Tài khoản">
             {session ? (
               <>
-                <Link to="/profile">{session.user.display_name}</Link>
+                {workspace ? (
+                  <ActionMenu label={session.user.display_name}>
+                    <Link to="/profile">Hồ sơ cá nhân</Link>
+                    <Link to="/settings/security">Bảo mật tài khoản</Link>
+                    <Link to="/help">Hướng dẫn</Link>
+                  </ActionMenu>
+                ) : (
+                  <Link to="/profile">{session.user.display_name}</Link>
+                )}
                 <button className="text-button" onClick={onLogout}>
                   Đăng xuất
                 </button>
