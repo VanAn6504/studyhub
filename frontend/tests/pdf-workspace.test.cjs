@@ -723,6 +723,7 @@ test(
     try {
       for (let index = 0; index < 3; index++) {
         await openPdf(f.page, f.page.getByRole('button', { name: 'Xem PDF', exact: true }), 1)
+        assert.ok((await f.page.locator('.pdf-viewer canvas').boundingBox()).height <= await f.page.locator('.pdf-scroll').evaluate(el=>el.clientHeight),'A slide fits vertically when first opened')
         assert.equal(await f.page.locator('.guidance-panel').count(), 0)
         assert.equal(await f.page.locator('.rag-document').count(), 1)
         await f.page.getByRole('button', { name: 'Về tài liệu', exact: true }).click()

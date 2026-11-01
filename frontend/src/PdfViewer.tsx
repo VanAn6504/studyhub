@@ -52,7 +52,7 @@ export default function PdfViewer({
   const [mode, setMode] = useState<ReadingMode>(() =>
     preferredMode(`${scope}:${documentType}`, documentType === 'lecture' ? 'single' : 'continuous'),
   )
-  const [zoom, setZoom] = useState<'width' | 'page' | number>('width'),
+  const [zoom, setZoom] = useState<'width' | 'page' | number>(mode === 'single' ? 'page' : 'width'),
     [focus, setFocus] = useState(false)
   const [box, setBox] = useState({ width: 700, height: 650, top: 0 }),
     [outline, setOutline] = useState<Outline>([])
