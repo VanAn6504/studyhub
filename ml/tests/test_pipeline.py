@@ -47,3 +47,27 @@ def test_group_split_is_reproducible_and_threshold_uses_validation_only():
     assert not groups['train'] & groups['validation'] and not groups['train'] & groups['test'] and not groups['validation'] & groups['test']
     assert set(np.concatenate(list(splits.values()))) == set(range(len(frame)))
     assert choose_threshold(np.array([0, 0, 1, 1]), np.array([0.1, 0.2, 0.3, 0.4])) == 0.3
+
+
+def test_daily_oulad_features_match_studyhub_prefix_and_keep_zero_activity(tmp_path):
+    from datetime import date, timedelta
+    from types import SimpleNamespace
+    from train_engagement import FEATURES, snapshots
+    from app.engagement_features import snapshot_features
+
+    archive = tmp_path / 'daily.zip'
+    with ZipFile(archive, 'w') as file:
+        file.writestr('studentInfo.csv', 'code_module,code_presentation,id_student,final_result\nA,P,1,Fail\nA,P,2,Pass\nA,P,3,Withdrawn\n')
+        file.writestr('studentRegistration.csv', 'code_module,code_presentation,id_student,date_registration\nA,P,1,-2\nA,P,2,0\nA,P,3,0\n')
+        file.writestr('courses.csv', 'code_module,code_presentation,module_presentation_length\nA,P,10\n')
+        file.writestr('studentVle.csv', 'code_module,code_presentation,id_student,date,id_site,sum_click\n'
+                      'A,P,1,0,10,3\nA,P,1,0,10,2\nA,P,1,1,10,5\nA,P,1,7,11,2\nA,P,1,8,12,99\nA,P,2,0,10,0\n')
+    frame = snapshots(archive).set_index(['id_student', 'day'])
+    start = date(2026, 1, 1)
+    run = SimpleNamespace(course_run_start_date=start)
+    activity = [(start + timedelta(days=day), resource) for day, resource in [(0, 10), (1, 10), (7, 11)]]
+    assert frame.loc[(1, 7), FEATURES].to_dict() == snapshot_features(run, 7, activity)
+    assert frame.loc[(2, 7), FEATURES].to_dict() == snapshot_features(run, 7, [])
+    assert frame.loc[(1, 7), 'distinct_resources'] == 2
+    assert frame.loc[(1, 7), 'active_days_7'] == 2
+    assert (1, 10) not in frame.index and (3, 0) not in frame.index

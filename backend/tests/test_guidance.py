@@ -160,6 +160,135 @@ def mature(database, run_id):
         conn.execute(text("UPDATE course_runs SET course_run_start_date='2020-01-01' WHERE id=:id"), {'id': run_id})
 
 
+def test_class_deadline_version_scope_completion_and_removal(client, seeded, database, monkeypatch):
+    from app import activity, quizzes
+    from app.models import CourseRun
+
+    teacher, run, topics, doc = setup_content(client, seeded)
+    quiz = make_quiz(client, teacher, topics[0], doc['versions'][0]['id'])
+    route = f"{P}/teaching/runs/{run['id']}/quiz-schedule"
+    set_url = f"{route}/{quiz['id']}"
+    assert client.get(route).json()['items'][0]['due_at'] is None
+    assert client.put(set_url, headers={'Origin': ORIGIN}, json={'due_local': None}).status_code == 403
+    assert client.put(set_url, headers=teacher, json={'due_local': '2026-11-04T12:00+07:00'}).status_code == 422
+    saved = client.put(set_url, headers=teacher, json={'due_local': '2026-11-04T12:00'})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['due_local'] == '2026-11-04T12:00'
+    other_run = client.post(f"{P}/courses/{run['course_id']}/runs", headers=teacher, json={
+        'code': 'OTHER_DEADLINE', 'course_run_start_date': '2026-11-01', 'timezone': run['timezone']}).json()
+    assert client.get(f"{P}/teaching/runs/{other_run['id']}/quiz-schedule").json()['items'][0]['due_at'] is None
+    start = datetime.fromisoformat(saved.json()['due_at'])
+    with Session(database) as db:
+        db.get(CourseRun, UUID(run['id'])).course_run_start_date = date(2026, 11, 1)
+        db.commit()
+    now = start - timedelta(seconds=1)
+    monkeypatch.setattr(activity, 'utcnow', lambda: now)
+    monkeypatch.setattr(quizzes, 'utcnow', lambda: now)
+    headers = login(client, seeded, 'student')
+    assert client.get(route).status_code == 403
+    activity_url = f"{P}/course-runs/{run['id']}/learning-activity"
+    def scheduled():
+        response = client.get(activity_url)
+        assert response.status_code == 200, response.text
+        return response.json()['schedule']
+    assert scheduled()[0]['status'] == 'due_soon'
+    complete(client, headers, run, topics[0], quiz)
+    assert scheduled()[0]['status'] == 'submitted_on_time'
+    teacher = login(client, seeded, 'teacher')
+    next_quiz = make_quiz(client, teacher, topics[0], doc['versions'][0]['id'])
+    assert client.put(set_url, headers=teacher, json={'due_local': None}).status_code == 409
+    next_url = f"{route}/{next_quiz['id']}"
+    assert client.put(next_url, headers=teacher, json={'due_local': '2026-11-04T12:00'}).status_code == 200
+    headers = login(client, seeded, 'student')
+    now = start + timedelta(seconds=1)
+    rows = {item['quiz_version_id']: item for item in scheduled()}
+    assert rows[quiz['id']]['status'] == 'submitted_on_time' and not rows[quiz['id']]['current']
+    assert rows[next_quiz['id']]['status'] == 'overdue'
+    complete(client, headers, run, topics[0], next_quiz)
+    rows = {item['quiz_version_id']: item for item in scheduled()}
+    assert rows[next_quiz['id']]['status'] == 'submitted_late' and rows[next_quiz['id']]['graded']
+    teacher = login(client, seeded, 'teacher')
+    assert client.put(next_url, headers=teacher, json={'due_local': None}).status_code == 200
+    login(client, seeded, 'student')
+    assert [item['quiz_version_id'] for item in scheduled()] == [quiz['id']]
+
+
+def test_daily_forecast_matches_snapshot_boundaries_and_caches(client, seeded, database, tmp_path, monkeypatch):
+    from app import activity, engagement_predictions
+    from app.config import get_settings
+    from app.engagement_features import FEATURES, SCHEMA
+    from app.learning_models import DocumentVersion, LearningEvent
+    from app.models import CourseRun, Enrollment
+    from test_learning import pdf_bytes
+
+    teacher, run, _, doc = setup_content(client, seeded)
+    pdf = doc['versions'][0]['id']
+    response = client.post(f"{P}/documents/{doc['id']}/versions", headers=teacher,
+                           files={'file': ('next.pdf', pdf_bytes(), 'application/pdf')})
+    assert response.status_code == 201, response.text
+    second_pdf = response.json()['id']
+    headers = login(client, seeded, 'student')
+    start = datetime(2026, 3, 7, 5, tzinfo=timezone.utc)  # Midnight New York before DST.
+    now = start
+    monkeypatch.setattr(engagement_predictions, 'utcnow', lambda: now)
+    monkeypatch.setattr(activity, 'utcnow', lambda: now)
+    directory = tmp_path / 'daily'
+    monkeypatch.setattr(get_settings(), 'engagement_artifact_path', directory)
+    url = f"{P}/course-runs/{run['id']}"
+    with Session(database) as db:
+        actual = db.get(CourseRun, UUID(run['id']))
+        actual.course_run_start_date, actual.timezone = start.date(), 'America/New_York'
+        enrollment = db.scalar(select(Enrollment).where(Enrollment.course_run_id == actual.id))
+        assert second_pdf != pdf
+        assert db.get(DocumentVersion, UUID(second_pdf)).learning_document_id == UUID(doc['id'])
+        for when, version, origin in [(start, pdf, 'real'), (start + timedelta(hours=2), second_pdf, 'real'),
+                                      (start + timedelta(hours=24), second_pdf, 'real'),
+                                      (start + timedelta(hours=26), second_pdf, 'synthetic')]:
+            db.add(LearningEvent(enrollment_id=enrollment.id, client_event_id=uuid4(), viewer_session_id=uuid4(),
+                type='page_view', document_version_id=UUID(version), pdf_page=1,
+                occurred_at=when, received_at=when, data_origin=origin))
+        db.commit()
+    assert client.post(url + '/engagement-forecast', headers=headers).json()['status'] == 'not_ready'
+    now = start + timedelta(hours=24)
+    assert client.post(url + '/engagement-forecast', headers=headers).json()['status'] == 'model_unavailable'
+    activity_now = client.get(url + '/learning-activity').json()
+    assert (activity_now['active_days_7'], activity_now['page_views_7'], activity_now['documents_7']) == (2, 3, 1)
+    assert activity_now['last_read']['document_version_id'] == second_pdf
+    x = np.array([[1, 0, 0, 1, 0], [1, 1, 1, 0, 1], [2, 0, 0, 2, 0], [2, 2, 2, 0, 1]])
+    model = RandomForestClassifier(n_estimators=3, random_state=7).fit(x, [1, 0, 1, 0])
+    directory.mkdir()
+    joblib.dump({'model': model, 'background': x}, directory / 'model.joblib')
+    manifest = dict(artifact_version=1, code='daily_fixture',
+        artifact_sha256=hashlib.sha256((directory / 'model.joblib').read_bytes()).hexdigest(),
+        feature_set='activity_daily', feature_schema_version=SCHEMA, feature_order=FEATURES,
+        supported_ranges=[[0, 6]], class_mapping={'0': 'Pass/Distinction', '1': 'Fail'}, threshold=0.4,
+        threshold_source='validation_max_fail_f1', calibration_status='uncalibrated', output_space='raw_probability',
+        libraries={'python': platform.python_version(), 'numpy': np.__version__, 'sklearn': sklearn.__version__,
+                   'xgboost': xgboost.__version__, 'joblib': joblib.__version__})
+    (directory / 'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+    assert client.get(url + '/engagement-forecast').json()['status'] == 'not_computed'
+    assert client.post(url + '/engagement-forecast', headers={'Origin': ORIGIN}).status_code == 403
+    first = client.post(url + '/engagement-forecast', headers=headers).json()
+    assert first['status'] == 'ok'
+    assert first['feature_snapshot'] == dict(elapsed_days=1, active_days=1, active_days_7=1,
+        days_since_last_activity=0, distinct_resources=1)
+    assert client.post(url + '/engagement-forecast', headers=headers).json()['id'] == first['id']
+    now = start + timedelta(hours=47)
+    second = client.post(url + '/engagement-forecast', headers=headers).json()
+    assert second['id'] != first['id'] and second['feature_snapshot']['active_days'] == 2
+    assert datetime.fromisoformat(second['cutoff_end_at']) == now
+    now = start + timedelta(days=9)
+    assert client.get(url + '/engagement-forecast').json()['status'] == 'outside_range'
+    now = start + timedelta(days=44)
+    outside = client.post(url + '/engagement-forecast', headers=headers).json()
+    assert outside['status'] == 'outside_range' and outside['risk_score'] is None
+    client.cookies.clear()
+    assert client.get(url + '/engagement-forecast').status_code == 401
+    with database.connect() as conn:
+        assert conn.scalar(text('SELECT count(*) FROM learning_events')) == 4
+        assert conn.scalar(text('SELECT count(*) FROM predictions')) == 2
+
+
 def test_current_learning_activity_uses_local_days_and_read_only(client, seeded, database, monkeypatch):
     from app import activity, predictions
     from app.learning_models import LearningEvent
@@ -348,6 +477,8 @@ def test_prediction_missing_model_and_other_student_access(client, seeded, datab
     outsider = {'Origin': ORIGIN, 'X-CSRF-Token': session['csrf_token']}
     assert client.get(url + '/learning-path').status_code == 404
     assert client.get(url + '/learning-activity').status_code == 404
+    assert client.get(url + '/engagement-forecast').status_code == 404
+    assert client.post(url + '/engagement-forecast', headers=outsider).status_code == 404
     assert client.get(url + '/prediction').status_code == 404
     assert client.post(url + '/predictions', headers=outsider).status_code == 404
 

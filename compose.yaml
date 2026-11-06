@@ -9,6 +9,7 @@ x-backend: &backend
     COURSE_MANIFEST_PATH: /content/mobile_multiplatform/course_manifest.json
     PDF_STORAGE_PATH: /data/pdfs
     MODEL_ARTIFACT_PATH: /models/current
+    ENGAGEMENT_ARTIFACT_PATH: /models/engagement
     EMBEDDING_MODEL_PATH: /embedding
   volumes:
     - ./content:/content:ro

@@ -28,6 +28,7 @@ class DocumentVersion(Base):
     __table_args__ = (UniqueConstraint("document_id", "version"), CheckConstraint("version >= 1 AND page_count BETWEEN 1 AND 2000 AND byte_size BETWEEN 1 AND 104857600", name='ck_pdf_limits'))
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documents.id", ondelete="SET NULL"))
+    learning_document_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     storage_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     original_filename: Mapped[str] = mapped_column(Text, nullable=False)
@@ -86,6 +87,14 @@ class QuizVersion(Base):
     min_questions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="3")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ClassQuizDeadline(Base):
+    __tablename__ = 'class_quiz_deadlines'
+    course_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('course_runs.id'), primary_key=True)
+    quiz_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('quiz_versions.id'), primary_key=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class QuizItem(Base):

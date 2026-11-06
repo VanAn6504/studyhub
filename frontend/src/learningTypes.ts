@@ -96,6 +96,7 @@ export type LearningPath = {
   warnings: { topic_id: string; reason: string }[]
   steps: (TopicState & {
     position: number
+    prerequisite_topic_ids?: string[]
     materials: {
       document_version_id: string
       title: string
@@ -105,9 +106,31 @@ export type LearningPath = {
     }[]
   })[]
 }
+export type QuizDeadline = {
+  quiz_version_id: string
+  version: number
+  topic_id: string
+  topic_code: string
+  title: string
+  current: boolean
+  due_at: string | null
+  due_local: string | null
+}
+export type LearnerDeadline = QuizDeadline & {
+  due_at: string
+  status: 'submitted_on_time' | 'submitted_late' | 'archived' | 'overdue' | 'upcoming' | 'due_soon'
+  submitted_at: string | null
+  graded: boolean
+}
 export type LearningActivity = {
   active_days: number
   page_views: number
+  active_days_7: number
+  page_views_7: number
+  documents_7: number
+  last_activity_at: string | null
+  last_read: { document_version_id: string; page: number; title: string } | null
+  schedule: LearnerDeadline[]
   starts_at: string
   started: boolean
   timezone: string
@@ -117,9 +140,9 @@ export type LearningActivity = {
   linked_run: { id: string; course_id: string; code: string } | null
 }
 export type PredictionResult = {
-  status: 'not_ready' | 'not_computed' | 'insufficient_data' | 'model_unavailable' | 'ok'
+  status: 'not_ready' | 'not_computed' | 'insufficient_data' | 'model_unavailable' | 'outside_range' | 'ok'
   risk_score: number | null
-  cutoff_end_at: string
+  cutoff_end_at: string | null
   data_origin: string
   model_code?: string
   computed_at?: string

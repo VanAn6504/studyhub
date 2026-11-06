@@ -17,6 +17,7 @@ import numpy as np
 import sklearn
 import xgboost
 
+from app.engagement_features import FEATURES, SCHEMA, STAGES
 from app.features import CUTOFF_DAY, FEATURES_A, FEATURES_B, SCHEMA_VERSION
 
 
@@ -24,13 +25,18 @@ class ArtifactUnavailable(Exception):
     pass
 
 
-def load_artifact(directory: Path):
+def load_artifact(directory: Path, *, daily=False):
     try:
         manifest_bytes = (directory / 'manifest.json').read_bytes()
         metadata = json.loads(manifest_bytes)
-        names = FEATURES_A if metadata['feature_set'] == 'A' else FEATURES_B
-        if (metadata['artifact_version'] != 1 or metadata['feature_schema_version'] != SCHEMA_VERSION
-                or metadata['cutoff_day'] != CUTOFF_DAY or metadata['feature_set'] not in ('A', 'B')
+        names = FEATURES if daily else FEATURES_A if metadata['feature_set'] == 'A' else FEATURES_B
+        if daily:
+            if metadata['feature_set'] != 'activity_daily' or any(
+                    interval not in [list(stage) for stage in STAGES] for interval in metadata['supported_ranges']):
+                raise ArtifactUnavailable()
+        elif metadata['cutoff_day'] != CUTOFF_DAY or metadata['feature_set'] not in ('A', 'B'):
+            raise ArtifactUnavailable()
+        if (metadata['artifact_version'] != 1 or metadata['feature_schema_version'] != (SCHEMA if daily else SCHEMA_VERSION)
                 or metadata['feature_order'] != names or metadata['class_mapping'] != {'0': 'Pass/Distinction', '1': 'Fail'}
                 or metadata['output_space'] != 'raw_probability' or metadata['calibration_status'] != 'uncalibrated'
                 or metadata['threshold_source'] != 'validation_max_fail_f1'
@@ -51,10 +57,13 @@ def load_artifact(directory: Path):
         background = np.array(bundle['background'], dtype=float)
         if list(model.classes_) != [0, 1] or model.n_features_in_ != len(names) or background.ndim != 2 or background.shape[1] != len(names) or not 1 <= len(background) <= 16:
             raise ArtifactUnavailable()
-        preprocessing = metadata['preprocessing']
-        if (preprocessing['strategy'] != 'train_only_median'
-                or not np.array_equal(np.asarray(preprocessing['statistics']), model.named_steps['imputer'].statistics_)):
+        if daily and not np.isfinite(background).all():
             raise ArtifactUnavailable()
+        if not daily:
+            preprocessing = metadata['preprocessing']
+            if (preprocessing['strategy'] != 'train_only_median'
+                    or not np.array_equal(np.asarray(preprocessing['statistics']), model.named_steps['imputer'].statistics_)):
+                raise ArtifactUnavailable()
         metadata['manifest_sha256'] = hashlib.sha256(manifest_bytes).hexdigest()
         return metadata, model, background
     except ArtifactUnavailable:

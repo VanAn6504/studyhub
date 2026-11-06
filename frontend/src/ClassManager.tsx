@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { listAll, request } from './api'
 import type { CourseRun } from './api'
+import QuizScheduleEditor from './QuizScheduleEditor'
 
 type Member = {
   id: string
@@ -24,6 +25,7 @@ export default function ClassManager({
   onReport: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -105,6 +107,10 @@ export default function ClassManager({
         <button className="button button-secondary" onClick={onReport} disabled={busy}>
           Xem kết quả lớp
         </button>
+        {editable && <button className="button button-secondary" aria-expanded={scheduleOpen}
+          onClick={() => setScheduleOpen(value => !value)}>
+          {scheduleOpen ? 'Đóng lịch quiz' : 'Lịch quiz'}
+        </button>}
         {editable && (
           <button
             className="button button-primary"
@@ -125,6 +131,7 @@ export default function ClassManager({
           </button>
         )}
       </div>
+      {scheduleOpen && editable && <QuizScheduleEditor run={run} csrfToken={csrfToken} />}
       {message && (
         <p className="notice notice-success" role="status">
           {message}

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     pdf_storage_path: Path = REPO_ROOT / ".local" / "pdfs"
     model_artifact_path: Path = REPO_ROOT / 'ml' / 'artifacts' / 'current'
+    engagement_artifact_path: Path = REPO_ROOT / 'ml' / 'artifacts' / 'engagement'
     chat_provider: str = 'gemini'
     gemini_api_key: SecretStr | None = None
     gemini_model: str = Field(default='gemini-3.5-flash-lite', pattern=r'^[A-Za-z0-9._-]+$')

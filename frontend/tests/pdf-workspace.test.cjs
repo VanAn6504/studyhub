@@ -230,24 +230,23 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
     } else if (path.endsWith('/learning-activity'))
       payload = {
         active_days: events.length ? 1 : 0, page_views: events.filter(event => event.type === 'page_view').length,
+        active_days_7: events.length ? 1 : 0, page_views_7: events.filter(event => event.type === 'page_view').length,
+        documents_7: events.length ? 1 : 0, last_activity_at: null, last_read: null, schedule: [],
         started: !reader.futureRun, starts_at: '2026-10-05T17:00:00Z', timezone: 'Asia/Bangkok',
         completed_days: reader.forecast ? 43 : reader.futureRun ? 0 : 10,
         window_days: 43, cutoff_end_at: '2026-11-17T17:00:00Z',
         linked_run: null,
       }
-    else if (path.endsWith('/prediction'))
+    else if (path.endsWith('/engagement-forecast') && method === 'GET')
       payload = {
         status: reader.forecast ? 'not_computed' : 'not_ready',
         risk_score: null,
         cutoff_end_at: '2026-11-17T17:00:00Z',
         data_origin: 'real',
       }
-    else if (path.endsWith('/predictions') && method === 'POST') {
-      if (++forecastAttempts === 1) {
-        await route.fulfill({ status: 503, json: { error: { code: 'MODEL_UNAVAILABLE', message: 'Fixture unavailable' } } })
-        return
-      }
-      payload = { status: 'insufficient_data', risk_score: null, cutoff_end_at: '2026-11-17T17:00:00Z', data_origin: 'real' }
+    else if (path.endsWith('/engagement-forecast') && method === 'POST') {
+      payload = { status: ++forecastAttempts === 1 ? 'model_unavailable' : 'outside_range',
+        risk_score: null, cutoff_end_at: '2026-11-17T17:00:00Z', data_origin: 'real' }
     }
     else if (path.endsWith('/chat-sessions'))
       payload = list([{ id: 'chat-fixture', created_at: '2026-10-06T10:00:00Z' }])
@@ -351,12 +350,11 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
     await page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
     await page.locator('.guidance-panel').waitFor()
     if (!reader.forecast) {
-      await page.getByText('Đang thu thập dữ liệu', { exact: true }).waitFor()
-      await page.getByText(`Đã hoàn tất ${reader.futureRun ? 0 : 10}/43 ngày lịch trong cửa sổ dự báo.`).waitFor()
-      await page.getByText(reader.futureRun ? 'Lớp chưa bắt đầu. Ngày bắt đầu' : 'Chưa ghi nhận lượt xem trang.', { exact: false }).waitFor()
+      await page.getByText('Chưa hoàn tất ngày học đầu tiên.', { exact: false }).waitFor()
+      await page.getByText(reader.futureRun ? 'Lớp chưa bắt đầu. Ngày bắt đầu' : 'Chưa bắt đầu học trên StudyHub.', { exact: false }).waitFor()
       await page.getByText('Chưa có kết quả để đánh giá theo quiz hiện hành.').waitFor()
       assert.equal(await page.locator('.risk-score').count(), 0)
-      assert.equal(await page.getByRole('button', { name: 'Tính dự báo', exact: true }).count(), 0)
+      await page.getByRole('button', { name: 'Cập nhật đánh giá', exact: true }).waitFor()
     }
     await page.waitForLoadState('networkidle')
     await page.getByRole('button', { name: 'Nội dung học phần', exact: true }).click()
@@ -375,19 +373,19 @@ function countRequests(fixture, suffix) {
   ).length
 }
 
-test('prediction separates uncomputed, unavailable model and missing activity without a score', async () => {
+test('prediction separates uncomputed, unavailable model and unsupported day without a score', async () => {
   const fixture = await workspace('student', false, { forecast: true })
   const { page } = fixture
   try {
     await page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
-    await page.getByText('Đã qua mốc thời gian. Chưa tính dự báo cho lớp học này.').waitFor()
-    assert.equal(countRequests(fixture, '/predictions'), 0)
-    const compute = page.getByRole('button', { name: 'Tính dự báo', exact: true })
+    await page.getByText('Chưa có điểm cho mốc dữ liệu này.', { exact: false }).waitFor()
+    assert.equal(fixture.requests.filter(r => r.path.endsWith('/engagement-forecast') && r.method === 'POST').length, 0)
+    const compute = page.getByRole('button', { name: 'Cập nhật đánh giá', exact: true })
     await compute.click()
     await page.getByText('Mô hình chưa sẵn sàng.', { exact: false }).waitFor()
     assert.equal(await page.locator('.risk-score').count(), 0)
     await compute.click()
-    await page.getByText('Chưa đủ dữ liệu: không có lượt xem trang hợp lệ trong cửa sổ dự báo.').waitFor()
+    await page.getByText('Thời điểm này nằm ngoài dải ngày đã kiểm thử của mô hình.').waitFor()
     assert.equal(await page.locator('.risk-score').count(), 0)
   } finally {
     await fixture.context.close()
@@ -639,7 +637,7 @@ test(
     try {
       await singlePanels(f.page)
       const beforePath = countRequests(f, '/learning-path'),
-        beforePrediction = countRequests(f, '/prediction')
+        beforePrediction = countRequests(f, '/engagement-forecast')
       const beforeDocs = countRequests(f, '/documents'),
         beforeResults = countRequests(f, '/results')
       for (let index = 0; index < 8; index++) {
@@ -679,7 +677,7 @@ test(
       const eventGets = countRequests(f, '/events')
       assert.ok(eventGets > 1, 'Log list still updates')
       assert.ok(
-        countRequests(f, '/prediction') > beforePrediction,
+        countRequests(f, '/engagement-forecast') > beforePrediction,
         'Activity still invalidates risk data independently of the path',
       )
       await f.page.getByRole('button', { name: 'Kết quả', exact: true }).click()
@@ -687,6 +685,7 @@ test(
         .getByText(`Log học tập của tôi (${f.events.length} sự kiện)`, { exact: true })
         .waitFor()
       await f.page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
+      await f.page.getByText('Bước học tiếp theo theo từng chủ đề', { exact: true }).click()
       await openPdf(
         f.page,
         f.page
@@ -735,7 +734,7 @@ test(
       assert.equal(countRequests(f, '/learning-path'), pathBefore)
       await f.page.getByRole('button', { name: 'Về chủ đề', exact: true }).click()
       await f.page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
-      await f.page.getByRole('button', { name: 'Cập nhật lộ trình', exact: true }).click()
+      await f.page.getByRole('button', { name: 'Cập nhật đánh giá', exact: true }).click()
       await f.page.waitForLoadState('networkidle')
       assert.equal(countRequests(f, '/learning-path'), pathBefore + 1)
       await f.page.getByRole('button', { name: 'Nội dung học phần', exact: true }).click()
@@ -746,6 +745,7 @@ test(
       await f.page.getByRole('button', { name: 'Nộp và xem kết quả', exact: true }).click()
       await f.page.getByRole('button', { name: 'Xác nhận nộp', exact: true }).click()
       await f.page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
+      await f.page.getByText('Bước học tiếp theo theo từng chủ đề', { exact: true }).click()
       await f.page
         .locator('.guidance-panel')
         .getByText('FL01 · Đã đạt 100.0%', { exact: true })

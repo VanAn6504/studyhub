@@ -1,5 +1,6 @@
 """Atomic, idempotent learning events with server time and enrollment provenance."""
 from collections import defaultdict, deque
+from datetime import timedelta
 from threading import Lock
 import time
 from uuid import UUID
@@ -13,9 +14,10 @@ from app.courses import Limit, Offset, owner_run
 from app.db import get_db
 from app.errors import ApiError
 from app.features import CUTOFF_DAY, cutoff_bounds
-from app.learning_models import LearningEvent, QuizAttempt, QuizVersion
+from app.learning_models import Document, DocumentVersion, LearningEvent, QuizAttempt, QuizVersion
 from app.learning_schemas import EventsInput
 from app.models import CourseRun, Enrollment, User
+from app.quiz_schedule import learner_schedule
 from app.quizzes import attempt_output, student_enrollment
 from app.resources import version_access
 from app.security import AuthContext, get_auth, require_teacher, utcnow
@@ -94,6 +96,17 @@ def list_events(run_id: UUID, limit: Limit = 20, offset: Offset = 0, context: Au
     return {'items': [{key: getattr(row, key) for key in fields} for row in rows], 'total': total, 'limit': limit, 'offset': offset}
 
 
+def activity_resource():
+    # Orphaned versions predating the identity migration retain their version ID.
+    return func.coalesce(DocumentVersion.learning_document_id, DocumentVersion.document_id, DocumentVersion.id)
+
+
+def eligible_page_views(run, enrollment, start):
+    return (LearningEvent.enrollment_id == enrollment.id, LearningEvent.type == 'page_view',
+            LearningEvent.schema_version == 'learning_event_v1', LearningEvent.data_origin == run.data_origin,
+            LearningEvent.occurred_at >= start)
+
+
 @router.get('/course-runs/{run_id}/learning-activity')
 def learning_activity(run_id: UUID, context: AuthContext = Depends(get_auth), db: Session = Depends(get_db)):
     run, enrollment = student_enrollment(db, run_id, context)
@@ -103,11 +116,19 @@ def learning_activity(run_id: UUID, context: AuthContext = Depends(get_auth), db
     window_days = CUTOFF_DAY + 1
     completed_days = min(window_days, max(0, (today - run.course_run_start_date).days))
     local_day = func.date(func.timezone(run.timezone, LearningEvent.occurred_at))
-    active_days, page_views = db.execute(select(func.count(local_day.distinct()), func.count()).where(
-        LearningEvent.enrollment_id == enrollment.id, LearningEvent.type == 'page_view',
-        LearningEvent.schema_version == 'learning_event_v1', LearningEvent.data_origin == run.data_origin,
-        LearningEvent.occurred_at >= start, LearningEvent.occurred_at <= now,
-        LearningEvent.received_at <= now)).one()
+    valid = (*eligible_page_views(run, enrollment, start), LearningEvent.occurred_at <= now,
+             LearningEvent.received_at <= now)
+    recent = local_day >= today - timedelta(days=6)
+    active_days, page_views, active_days_7, page_views_7, documents_7, last_at = db.execute(select(
+        func.count(local_day.distinct()), func.count(), func.count(local_day.distinct()).filter(recent),
+        func.count().filter(recent), func.count(activity_resource().distinct()).filter(recent),
+        func.max(LearningEvent.occurred_at)).select_from(LearningEvent).join(
+        DocumentVersion, DocumentVersion.id == LearningEvent.document_version_id).where(*valid)).one()
+    last_read = db.execute(select(DocumentVersion.id.label('document_version_id'), Document.title,
+        LearningEvent.pdf_page.label('page')).join_from(LearningEvent, DocumentVersion).join(Document).where(
+        *valid, Document.course_id == run.course_id, Document.deleted_at.is_(None),
+        Document.status == 'published', DocumentVersion.status == 'ready').order_by(
+        LearningEvent.occurred_at.desc(), LearningEvent.id.desc()).limit(1)).mappings().first()
 
     other_runs = select(CourseRun).join(Enrollment).where(
         Enrollment.student_id == enrollment.student_id, Enrollment.status == 'active',
@@ -124,6 +145,9 @@ def learning_activity(run_id: UUID, context: AuthContext = Depends(get_auth), db
         linked = db.scalar(other_runs.where(CourseRun.data_origin == 'real', CourseRun.status.in_(('active', 'closed'))).limit(1))
     return {
         'active_days': active_days, 'page_views': page_views,
+        'active_days_7': active_days_7, 'page_views_7': page_views_7, 'documents_7': documents_7,
+        'last_activity_at': last_at, 'last_read': dict(last_read) if last_read else None,
+        'schedule': learner_schedule(db, run, enrollment, now),
         'starts_at': start, 'started': now >= start, 'timezone': run.timezone,
         'completed_days': completed_days, 'window_days': window_days, 'cutoff_end_at': cutoff,
         'linked_run': {'id': linked.id, 'course_id': linked.course_id, 'code': linked.code} if linked else None,

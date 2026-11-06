@@ -91,7 +91,8 @@ def persist_pdf(db, document, file, commit=True):
                     _ = page.mediabox
         except Exception:
             raise ApiError(422, 'PDF_UNREADABLE', 'PDF lỗi, mã hóa hoặc vượt giới hạn 2.000 trang.') from None
-        version = DocumentVersion(document_id=document.id, version=number, storage_key=key, original_filename=original,
+        version = DocumentVersion(document_id=document.id, learning_document_id=document.id,
+            version=number, storage_key=key, original_filename=original,
                                   sha256=digest.hexdigest(), page_count=pages, byte_size=size, status='ready')
         temporary.replace(path)
         db.add(version)

@@ -215,7 +215,27 @@ Pipeline tính A/B ở ngày 28/42, baseline prior/Random Forest/XGBoost (12 th�
 
 Docker mount `ml/artifacts` vào `/models` ở chế độ đọc. Local dùng `ml/artifacts/current` hoặc `MODEL_ARTIFACT_PATH`. API kiểm tra hash/schema/cutoff/phiên bản thư viện trước khi nạp. **Joblib chỉ dành cho artifact do quản trị viên tự huấn luyện và quản lý**, không dùng file tải lên hoặc model nhận từ nguồn không tin cậy. Mã pipeline/dependency được commit; artifact/dataset cần sao lưu riêng. Định dạng serialization phụ thuộc phiên bản thư viện; xem [hướng dẫn model persistence của scikit-learn](https://scikit-learn.org/1.7/model_persistence.html).
 
-### Cửa sổ và trạng thái dự báo
+### Đánh giá theo yêu cầu và lịch quiz
+
+Trong **Lộ trình & tiến độ** của lớp thật, **Cập nhật đánh giá** làm mới nhịp học 7 ngày, lịch quiz, bước học ưu tiên và điểm rủi ro thử nghiệm. Phần nhịp học tính ngày hiện tại cùng 6 ngày lịch trước đó theo múi giờ lớp. Lượt xem được ghi nhận đến lúc cập nhật. Mở trang chỉ đọc trạng thái dự báo hiện có.
+
+Giảng viên vào **Lớp học → Lịch quiz** để đặt, sửa hoặc bỏ hạn của quiz công bố, theo giờ địa phương của lớp. Hạn gắn với phiên bản quiz. Khi thay phiên bản, lịch cũ và bài đã nộp vẫn đối chiếu được. Phiên bản mới cần hạn riêng. Hạn dùng để theo dõi tiến độ, tính theo lần nộp hoàn tất đầu tiên của đúng phiên bản. Lịch phân biệt nộp đúng hạn, nộp muộn và quá hạn chưa nộp. Trong vòng 72 giờ trước hạn, quiz chưa nộp được ghi là sắp đến hạn.
+
+Migration `0012_class_progress` bổ sung bảng hạn quiz và lưu định danh tài liệu trên phiên bản để đếm tài liệu nhất quán qua các lần thay PDF. Dữ liệu cũ mặc định chưa có hạn. Với phiên bản đã mất liên kết do bị xóa trước migration, thống kê lịch sử dùng ID phiên bản vì không còn ID tài liệu gốc. Sao lưu PostgreSQL và PDF trước khi nâng cấp.
+
+```powershell
+backend/.venv/Scripts/python.exe ml/train_engagement.py
+backend/.venv/Scripts/python.exe -m pytest ml/tests -q
+docker compose build
+docker compose run --rm migrate
+docker compose up -d backend frontend
+```
+
+`ml/train_engagement.py` xây dữ liệu ngày 0–41 từ `studentVle`, giữ các trường hợp đã ghi danh nhưng chưa hoạt động, và tách tập theo `id_student`. Logistic Regression và XGBoost được so sánh trên validation. Mô hình, ngưỡng tối đa F1 của lớp Fail và giai đoạn phục vụ (ROC-AUC validation ≥ 0,55) được chốt trước đánh giá test. `evaluation.json` lưu chỉ số từng giai đoạn và độ phủ.
+
+Artifact riêng ở `ml/artifacts/engagement/` hoặc `ENGAGEMENT_ARTIFACT_PATH` khi chạy trực tiếp, mount Docker mặc định `/models/engagement`. Endpoint GET/POST `/api/v1/course-runs/{id}/engagement-forecast` chỉ phục vụ lớp thật. POST dùng Origin + CSRF và tính theo **ngày lịch đã hoàn tất gần nhất**, độc lập với thống kê cập nhật trong ngày. Kết quả được lưu theo enrollment, phiên bản model và mốc chốt. Nếu ngoài dải, chưa hoàn tất ngày đầu hoặc model lỗi, điểm là null. Kết quả OULAD chưa được hiệu chỉnh xác suất hay xác nhận trên sinh viên StudyHub.
+
+### Cửa sổ ngày 42 và lớp demo
 
 - POST `/api/v1/course-runs/{id}/predictions`: student, body rỗng `{}` hoặc không body; cần Origin + CSRF; không nhận feature/score/model path từ client.
 - GET `/api/v1/course-runs/{id}/prediction`: lấy snapshot đã lưu, không tự chạy model; chưa có trả `not_computed`.
@@ -233,7 +253,7 @@ Sau khi teacher đã công bố ít nhất một PDF trong học phần, quản 
 docker compose exec -T backend python -m app.seed_prediction_demo --course-code MACHINE_LEARNING --student-email student@example.com
 ```
 
-Đổi mã trong lệnh nếu bản cài dùng mã học phần khác. CLI tạo lớp synthetic đóng và riêng tư, bắt đầu 60 ngày trước, với 3 lượt xem trang mô phỏng vào ngày 0/2/42. Chạy lại giữ nguyên sự kiện đã có. Trong **Lộ trình & tiến độ** của lớp thật, chọn **Xem bản demo dự báo**, rồi bấm **Tính dự báo** ở `ML_DEMO_42` để xem điểm và giải thích của model. Nút **Quay lại lớp thật** ưu tiên lớp cùng học phần. Demo chỉ đọc tài liệu đã công bố và thử dự báo. Lớp thật vẫn phải qua cutoff mới tính được điểm.
+Đổi mã trong lệnh nếu bản cài dùng mã học phần khác. CLI tạo lớp synthetic đóng và riêng tư, bắt đầu 60 ngày trước, với 3 lượt xem trang mô phỏng vào ngày 0/2/42. Chạy lại giữ nguyên sự kiện đã có. Trong **Lộ trình & tiến độ** của lớp thật, chọn **Xem bản demo dự báo**, rồi bấm **Tính dự báo** ở `ML_DEMO_42` để xem điểm và giải thích của model ngày 42. Nút **Quay lại lớp thật** ưu tiên lớp cùng học phần. Demo chỉ đọc tài liệu đã công bố và thử dự báo.
 
 ## Chatbot RAG từ PDF
 

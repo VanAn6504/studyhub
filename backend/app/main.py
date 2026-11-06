@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import accounts, activity, admissions, auth, catalog, courses, learner_home, paths, predictions, quizzes, rag, rag_workflow, resources
+from app import accounts, activity, admissions, auth, catalog, courses, engagement_predictions, learner_home, paths, predictions, quiz_schedule, quizzes, rag, rag_workflow, resources
 from app.config import get_settings
 from app.db import get_engine
 from app.errors import ApiError, error_response, register_error_handlers
@@ -61,6 +61,8 @@ def create_app() -> FastAPI:
     application.include_router(activity.router, prefix="/api/v1")
     application.include_router(paths.router, prefix="/api/v1")
     application.include_router(predictions.router, prefix="/api/v1")
+    application.include_router(engagement_predictions.router, prefix="/api/v1")
+    application.include_router(quiz_schedule.router, prefix="/api/v1")
     application.include_router(rag.router, prefix="/api/v1")
     application.include_router(rag_workflow.router, prefix="/api/v1")
     application.include_router(catalog.router, prefix='/api/v1')

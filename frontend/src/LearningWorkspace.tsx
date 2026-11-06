@@ -532,6 +532,7 @@ export default function LearningWorkspace({
   const sourceVersions = documents
     .filter((d) => d.status === 'published')
     .flatMap((document) => document.versions.map((version) => ({ ...version, document })))
+  const firstPublished = sourceVersions.find(version => version.document.show_in_learning !== false)
   const versions = [
     ...documents,
     ...(citationDocument && !documents.some((d) => d.id === citationDocument.id)
@@ -985,6 +986,9 @@ export default function LearningWorkspace({
               refresh={reload}
               activityRefresh={activityReload}
               topics={topics}
+              firstMaterial={firstPublished && {
+                document_version_id: firstPublished.id, title: firstPublished.document.title, page_start: 1,
+              }}
               onExpired={onExpired}
               onTopic={(id) => go('quiz', { topicId: id })}
               onRead={readMaterial}
