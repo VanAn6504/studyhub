@@ -2,7 +2,7 @@ import hashlib
 import json
 import platform
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import joblib
@@ -160,6 +160,63 @@ def mature(database, run_id):
         conn.execute(text("UPDATE course_runs SET course_run_start_date='2020-01-01' WHERE id=:id"), {'id': run_id})
 
 
+def test_current_learning_activity_uses_local_days_and_read_only(client, seeded, database, monkeypatch):
+    from app import activity, predictions
+    from app.learning_models import LearningEvent
+    from app.models import CourseRun, Enrollment
+
+    _, run, _, document = setup_content(client, seeded)
+    login(client, seeded, 'student')
+    start = datetime(2026, 3, 1, 5, tzinfo=timezone.utc)  # Midnight in New York.
+    now = start - timedelta(seconds=1)
+    monkeypatch.setattr(activity, 'utcnow', lambda: now)
+    monkeypatch.setattr(predictions, 'utcnow', lambda: now)
+    url = f"{P}/course-runs/{run['id']}"
+    with Session(database) as db:
+        actual = db.get(CourseRun, UUID(run['id']))
+        actual.course_run_start_date = start.date()
+        actual.timezone = 'America/New_York'
+        db.commit()
+    future = client.get(url + '/learning-activity').json()
+    assert not future['started'] and future['completed_days'] == future['page_views'] == 0
+    assert datetime.fromisoformat(future['starts_at']) == start
+    now = start + timedelta(days=10)
+    empty = client.get(url + '/learning-activity').json()
+    assert empty['started'] and empty['completed_days'] == 10 and empty['active_days'] == empty['page_views'] == 0
+
+    with Session(database) as db:
+        enrollment = db.scalar(select(Enrollment).where(Enrollment.course_run_id == UUID(run['id'])))
+        for offset, kind, origin, received_offset in [
+            (-1, 'page_view', 'real', -1), (1, 'page_view', 'real', 1),
+            (2, 'page_view', 'real', 2), (24, 'page_view', 'real', 24),
+            (25, 'document_open', 'real', 25), (26, 'page_view', 'synthetic', 26),
+            (27, 'page_view', 'real', 241), (241, 'page_view', 'real', 241),
+            (24 * 45, 'page_view', 'real', 24 * 45),
+        ]:
+            db.add(LearningEvent(enrollment_id=enrollment.id, client_event_id=uuid4(), viewer_session_id=uuid4(),
+                type=kind, document_version_id=UUID(document['versions'][0]['id']), pdf_page=1 if kind == 'page_view' else None,
+                occurred_at=start + timedelta(hours=offset), received_at=start + timedelta(hours=received_offset),
+                data_origin=origin))
+        db.commit()
+    current = client.get(url + '/learning-activity').json()
+    assert (current['active_days'], current['page_views'], current['completed_days'], current['window_days']) == (2, 3, 10, 43)
+    prediction = client.get(url + '/prediction').json()
+    assert prediction['status'] == 'not_ready' and prediction['risk_score'] is None
+    cutoff = datetime.fromisoformat(current['cutoff_end_at'])
+    assert datetime.fromisoformat(prediction['cutoff_end_at']) == cutoff == start + timedelta(hours=43 * 24 - 1)
+    now = cutoff - timedelta(seconds=1)
+    assert client.get(url + '/learning-activity').json()['completed_days'] == 42
+    now = cutoff
+    assert client.get(url + '/learning-activity').json()['completed_days'] == 43
+    assert client.get(url + '/prediction').json()['status'] == 'not_computed'
+    now = start + timedelta(days=46)
+    later = client.get(url + '/learning-activity').json()
+    assert (later['page_views'], later['completed_days']) == (6, 43)
+    with database.connect() as conn:
+        assert conn.scalar(text('SELECT count(*) FROM learning_events')) == 9
+        assert conn.scalar(text('SELECT count(*) FROM predictions')) == 0
+
+
 def test_prediction_states_missing_artifact_and_schema(client, seeded, database, artifact):
     headers = login(client, seeded, 'student')
     run = client.get(f'{P}/course-runs').json()['items'][0]
@@ -260,7 +317,20 @@ def test_demo_cli_idempotence_and_real_timeline_preserved(client, seeded, databa
         assert conn.scalar(text("SELECT count(*) FROM learning_events WHERE data_origin='real'")) == 1
         assert conn.scalar(text("SELECT count(*) FROM quiz_attempts")) == 1
     runs = client.get(f'{P}/course-runs').json()['items']
-    assert len(runs) == 2 and next(r for r in runs if r['code'] == 'ML_DEMO_42')['data_origin'] == 'synthetic'
+    demo = next(r for r in runs if r['code'] == 'ML_DEMO_42')
+    assert len(runs) == 2 and demo['data_origin'] == 'synthetic' and demo['status'] == 'closed'
+    real_url = f"{P}/course-runs/{run['id']}/learning-activity"
+    demo_url = f"{P}/course-runs/{demo['id']}/learning-activity"
+    real_activity = client.get(real_url).json()
+    demo_activity = client.get(demo_url).json()
+    assert real_activity['page_views'] == 1 and real_activity['linked_run']['id'] == demo['id']
+    assert demo_activity['page_views'] == 3 and demo_activity['linked_run']['id'] == run['id']
+    with database.begin() as conn:
+        conn.execute(text("UPDATE enrollments SET status='inactive' WHERE course_run_id=:id"), {'id': demo['id']})
+    assert client.get(real_url).json()['linked_run'] is None
+    assert client.get(demo_url).status_code == 404
+    with pytest.raises(ValueError, match='inactive'):
+        seed_demo('MOBILE_MULTIPLATFORM', 'student@example.com')
 
 
 def test_prediction_missing_model_and_other_student_access(client, seeded, database):
@@ -277,6 +347,7 @@ def test_prediction_missing_model_and_other_student_access(client, seeded, datab
     session = client.post(f'{P}/auth/login', headers={'Origin': ORIGIN}, json={'email': email, 'password': password}).json()
     outsider = {'Origin': ORIGIN, 'X-CSRF-Token': session['csrf_token']}
     assert client.get(url + '/learning-path').status_code == 404
+    assert client.get(url + '/learning-activity').status_code == 404
     assert client.get(url + '/prediction').status_code == 404
     assert client.post(url + '/predictions', headers=outsider).status_code == 404
 

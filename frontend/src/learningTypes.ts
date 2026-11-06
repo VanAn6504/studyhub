@@ -105,12 +105,24 @@ export type LearningPath = {
     }[]
   })[]
 }
+export type LearningActivity = {
+  active_days: number
+  page_views: number
+  starts_at: string
+  started: boolean
+  timezone: string
+  completed_days: number
+  window_days: number
+  cutoff_end_at: string
+  linked_run: { id: string; course_id: string; code: string } | null
+}
 export type PredictionResult = {
   status: 'not_ready' | 'not_computed' | 'insufficient_data' | 'model_unavailable' | 'ok'
   risk_score: number | null
   cutoff_end_at: string
   data_origin: string
   model_code?: string
+  computed_at?: string
   threshold?: number
   threshold_exceeded?: boolean
   explanation?: {

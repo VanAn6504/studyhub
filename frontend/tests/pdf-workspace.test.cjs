@@ -80,6 +80,7 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
   let attempt = null,
     completed = false,
     eventFailed = false
+  let forecastAttempts = 0
   let deleted = false
   const questions = [],
     quizzes = []
@@ -226,13 +227,28 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
         warnings: [],
         steps: completed ? [] : [{ ...state, position: 1, materials: [material] }],
       }
-    } else if (path.endsWith('/prediction'))
+    } else if (path.endsWith('/learning-activity'))
       payload = {
-        status: 'not_ready',
+        active_days: events.length ? 1 : 0, page_views: events.filter(event => event.type === 'page_view').length,
+        started: !reader.futureRun, starts_at: '2026-10-05T17:00:00Z', timezone: 'Asia/Bangkok',
+        completed_days: reader.forecast ? 43 : reader.futureRun ? 0 : 10,
+        window_days: 43, cutoff_end_at: '2026-11-17T17:00:00Z',
+        linked_run: null,
+      }
+    else if (path.endsWith('/prediction'))
+      payload = {
+        status: reader.forecast ? 'not_computed' : 'not_ready',
         risk_score: null,
-        cutoff_end_at: '2026-11-16T00:00:00Z',
+        cutoff_end_at: '2026-11-17T17:00:00Z',
         data_origin: 'real',
       }
+    else if (path.endsWith('/predictions') && method === 'POST') {
+      if (++forecastAttempts === 1) {
+        await route.fulfill({ status: 503, json: { error: { code: 'MODEL_UNAVAILABLE', message: 'Fixture unavailable' } } })
+        return
+      }
+      payload = { status: 'insufficient_data', risk_score: null, cutoff_end_at: '2026-11-17T17:00:00Z', data_origin: 'real' }
+    }
     else if (path.endsWith('/chat-sessions'))
       payload = list([{ id: 'chat-fixture', created_at: '2026-10-06T10:00:00Z' }])
     else if (path.endsWith('/messages'))
@@ -334,6 +350,14 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
     )
     await page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
     await page.locator('.guidance-panel').waitFor()
+    if (!reader.forecast) {
+      await page.getByText('Đang thu thập dữ liệu', { exact: true }).waitFor()
+      await page.getByText(`Đã hoàn tất ${reader.futureRun ? 0 : 10}/43 ngày lịch trong cửa sổ dự báo.`).waitFor()
+      await page.getByText(reader.futureRun ? 'Lớp chưa bắt đầu. Ngày bắt đầu' : 'Chưa ghi nhận lượt xem trang.', { exact: false }).waitFor()
+      await page.getByText('Chưa có kết quả để đánh giá theo quiz hiện hành.').waitFor()
+      assert.equal(await page.locator('.risk-score').count(), 0)
+      assert.equal(await page.getByRole('button', { name: 'Tính dự báo', exact: true }).count(), 0)
+    }
     await page.waitForLoadState('networkidle')
     await page.getByRole('button', { name: 'Nội dung học phần', exact: true }).click()
     await page.getByRole('button', { name: 'Hỏi trợ giảng', exact: true }).click()
@@ -350,6 +374,30 @@ function countRequests(fixture, suffix) {
     (request) => request.method === 'GET' && request.path.endsWith(suffix),
   ).length
 }
+
+test('prediction separates uncomputed, unavailable model and missing activity without a score', async () => {
+  const fixture = await workspace('student', false, { forecast: true })
+  const { page } = fixture
+  try {
+    await page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
+    await page.getByText('Đã qua mốc thời gian. Chưa tính dự báo cho lớp học này.').waitFor()
+    assert.equal(countRequests(fixture, '/predictions'), 0)
+    const compute = page.getByRole('button', { name: 'Tính dự báo', exact: true })
+    await compute.click()
+    await page.getByText('Mô hình chưa sẵn sàng.', { exact: false }).waitFor()
+    assert.equal(await page.locator('.risk-score').count(), 0)
+    await compute.click()
+    await page.getByText('Chưa đủ dữ liệu: không có lượt xem trang hợp lệ trong cửa sổ dự báo.').waitFor()
+    assert.equal(await page.locator('.risk-score').count(), 0)
+  } finally {
+    await fixture.context.close()
+  }
+})
+
+test('prediction shows the start date and no score before the class begins', async () => {
+  const fixture = await workspace('student', false, { futureRun: true })
+  await fixture.context.close()
+})
 
 test(
   'teacher edits metadata, replaces a PDF after validation and permanently deletes with cancellation',

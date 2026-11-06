@@ -152,6 +152,7 @@ export default function CourseDashboard({
     if (
       teacher ||
       !run ||
+      run.data_origin === 'synthetic' ||
       !course ||
       !['topic', 'pdf', 'quiz', 'progress', 'results'].includes(route.view) ||
       (['topic', 'quiz'].includes(route.view) && !route.topicId)
@@ -174,6 +175,7 @@ export default function CourseDashboard({
   }, [
     teacher,
     run?.id,
+    run?.data_origin,
     course?.id,
     route.view,
     route.topicId,

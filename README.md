@@ -219,6 +219,7 @@ Docker mount `ml/artifacts` vào `/models` ở chế độ đọc. Local dùng `
 
 - POST `/api/v1/course-runs/{id}/predictions`: student, body rỗng `{}` hoặc không body; cần Origin + CSRF; không nhận feature/score/model path từ client.
 - GET `/api/v1/course-runs/{id}/prediction`: lấy snapshot đã lưu, không tự chạy model; chưa có trả `not_computed`.
+- GET `/api/v1/course-runs/{id}/learning-activity`: sinh viên có enrollment active xem ngày có đọc và lượt xem trang từ ngày bắt đầu lớp tới thời điểm hiện tại, theo múi giờ và nguồn dữ liệu của lớp. Trả tiến độ cửa sổ theo ngày lịch và lối chuyển tới lớp demo đủ điều kiện hoặc lớp thật. API chỉ đọc, tách khỏi snapshot đặc trưng ngày 42. Trong **Lộ trình & tiến độ**, số chủ đề đã đánh giá và đã đạt lấy từ quiz hiện hành trong lộ trình.
 - Cửa sổ **ngày 0–42**, tức 43 ngày lịch từ midnight ngày bắt đầu run trong timezone của run. Chỉ tính event trước `cutoff_end_at`, `received_at` cũng trước cutoff và provenance khớp run; quiz theo `graded_at`. Không lấy day43 trở đi.
 - Model lấy **lần chấm đầu tiên mỗi topic** trong cửa sổ, không tăng assessment_count theo retake/quiz version. Không có điểm là NULL rồi impute bằng median train. Path dùng bài mới nhất của current version, khác mục đích với feature model.
 - `not_ready`: chưa hết cửa sổ; `insufficient_data`: model hợp lệ nhưng không có page_view; cả hai có risk_score=NULL. Model thiếu/hash/schema/version sai trả 503 `MODEL_UNAVAILABLE`. `ok` lưu snapshot bất biến, cache theo enrollment/model/cutoff. Ngày bắt đầu/timezone bị khóa khi có attempt/event/prediction.
@@ -229,10 +230,10 @@ Docker mount `ml/artifacts` vào `/models` ở chế độ đọc. Local dùng `
 Sau khi teacher đã công bố ít nhất một PDF trong học phần, quản trị viên có thể tạo riêng `ML_DEMO_42` cho tài khoản student có sẵn:
 
 ```powershell
-docker compose exec -T backend python -m app.seed_prediction_demo --course-code MOBILE_MULTIPLATFORM --student-email student@example.com
+docker compose exec -T backend python -m app.seed_prediction_demo --course-code MACHINE_LEARNING --student-email student@example.com
 ```
 
-CLI tạo run synthetic closed bắt đầu 60 ngày trước, 3 page_view mô phỏng ngày 0/2/42, không tạo điểm quiz và không sửa ngày/log/attempt của run thật. Chạy lại không nhân đôi sự kiện. Sinh viên chọn `ML_DEMO_42`, bấm **Tính dự báo**; badge mô phỏng luôn hiển thị, client không ghi quiz/log vào run đó. PDF/quiz của học phần vẫn dùng các version đã công bố. Dữ liệu thật mới bắt đầu cần chờ cutoff để dự báo; lộ trình theo quiz hoạt động ngay.
+Đổi mã trong lệnh nếu bản cài dùng mã học phần khác. CLI tạo lớp synthetic đóng và riêng tư, bắt đầu 60 ngày trước, với 3 lượt xem trang mô phỏng vào ngày 0/2/42. Chạy lại giữ nguyên sự kiện đã có. Trong **Lộ trình & tiến độ** của lớp thật, chọn **Xem bản demo dự báo**, rồi bấm **Tính dự báo** ở `ML_DEMO_42` để xem điểm và giải thích của model. Nút **Quay lại lớp thật** ưu tiên lớp cùng học phần. Demo chỉ đọc tài liệu đã công bố và thử dự báo. Lớp thật vẫn phải qua cutoff mới tính được điểm.
 
 ## Chatbot RAG từ PDF
 

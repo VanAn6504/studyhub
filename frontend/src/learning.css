@@ -319,6 +319,10 @@
 .risk-panel { border-top: 1px solid #cbdcd5; padding-top: 12px; margin-top: 20px; overflow-wrap: anywhere; }
 .risk-score { font-size: 1.8rem; font-weight: 700; }
 .risk-score span { display: block; font-size: .9rem; font-weight: 500; }
+.guidance-stats { display: flex; flex-wrap: wrap; gap: 12px; }
+.guidance-stats div { flex: 1 1 145px; border: 1px solid #cbdcd5; border-radius: 10px; padding: 10px 12px; }
+.guidance-stats dd { margin: 4px 0 0; font-size: 1.3rem; font-weight: 700; }
+.guidance-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 @media (max-width: 600px) { .guidance-panel { padding: 14px; } }
 .corpus-editor, .chat-panel { margin: 1.4rem 0; padding: 1.25rem; border: 1px solid var(--border, #dce3ef); border-radius: 16px; background: var(--surface, #fff); }
 .corpus-editor fieldset, .chat-panel fieldset { border: 0; padding: 0; min-width: 0; }

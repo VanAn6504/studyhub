@@ -988,6 +988,11 @@ export default function LearningWorkspace({
               onExpired={onExpired}
               onTopic={(id) => go('quiz', { topicId: id })}
               onRead={readMaterial}
+              onLibrary={() => go('materials')}
+              onSwitchRun={(target) => go('progress', {
+                courseId: target.course_id, runId: target.id, topicId: '', versionId: '',
+                page: 1, returnView: undefined,
+              })}
             />
           </div>
         )}

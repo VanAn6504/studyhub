@@ -1,6 +1,6 @@
 """Administrative CLI for a separate synthetic timeline; never backdates a real run."""
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from uuid import NAMESPACE_URL, uuid5
 from zoneinfo import ZoneInfo
 
@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_engine
-from app.features import cutoff_bounds
+from app.features import CUTOFF_DAY, cutoff_bounds
 from app.learning_models import Document, DocumentVersion, LearningEvent
 from app.models import Course, CourseRun, Enrollment, User
 
@@ -26,12 +26,14 @@ def seed_demo(course_code, student_email):
         run = db.scalar(select(CourseRun).where(CourseRun.course_id == course.id, CourseRun.code == 'ML_DEMO_42').with_for_update())
         if run and run.data_origin != 'synthetic':
             raise ValueError('ML_DEMO_42 is already used by a real run; refusing to modify it.')
+        if run and (run.status != 'closed' or run.listed or run.enrollment_mode != 'invite_only'):
+            raise ValueError('Existing demo is not closed and private; refusing to modify it.')
         if not run:
             run = CourseRun(course_id=course.id, code='ML_DEMO_42', data_origin='synthetic', status='closed',
                 timezone='Asia/Bangkok', course_run_start_date=datetime.now(ZoneInfo('Asia/Bangkok')).date() - timedelta(days=60))
             db.add(run)
             db.flush()
-        lower, upper = cutoff_bounds(run.course_run_start_date, run.timezone)
+        _, upper = cutoff_bounds(run.course_run_start_date, run.timezone)
         if datetime.now(ZoneInfo('UTC')) < upper:
             raise ValueError('Existing synthetic timeline has not reached cutoff; refusing to rewrite it.')
         enrollment = db.scalar(select(Enrollment).where(Enrollment.course_run_id == run.id, Enrollment.student_id == student.id).with_for_update())
@@ -41,10 +43,10 @@ def seed_demo(course_code, student_email):
             db.flush()
         if enrollment.status != 'active':
             raise ValueError('Demo enrollment is inactive; review enrollment before reseeding.')
-        for day in [0, 2, 42]:
+        for day in (0, 2, CUTOFF_DAY):
             event_id = uuid5(NAMESPACE_URL, f'studyhub:synthetic:{enrollment.id}:page:{day}')
             if not db.scalar(select(LearningEvent.id).where(LearningEvent.enrollment_id == enrollment.id, LearningEvent.client_event_id == event_id)):
-                at = lower + timedelta(days=day, hours=12)
+                at = datetime.combine(run.course_run_start_date + timedelta(days=day), time(12), ZoneInfo(run.timezone))
                 db.add(LearningEvent(enrollment_id=enrollment.id, client_event_id=event_id,
                     viewer_session_id=uuid5(NAMESPACE_URL, f'studyhub:synthetic:{enrollment.id}:viewer'),
                     type='page_view', document_version_id=version.id, pdf_page=1,

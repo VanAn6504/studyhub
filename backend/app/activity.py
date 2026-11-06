@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 from threading import Lock
 import time
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -11,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.courses import Limit, Offset, owner_run
 from app.db import get_db
 from app.errors import ApiError
+from app.features import CUTOFF_DAY, cutoff_bounds
 from app.learning_models import LearningEvent, QuizAttempt, QuizVersion
 from app.learning_schemas import EventsInput
-from app.models import Enrollment, User
+from app.models import CourseRun, Enrollment, User
 from app.quizzes import attempt_output, student_enrollment
 from app.resources import version_access
 from app.security import AuthContext, get_auth, require_teacher, utcnow
@@ -90,6 +92,42 @@ def list_events(run_id: UUID, limit: Limit = 20, offset: Offset = 0, context: Au
     fields = ('id', 'enrollment_id', 'client_event_id', 'viewer_session_id', 'type', 'document_version_id', 'pdf_page',
               'schema_version', 'occurred_at', 'received_at', 'data_origin')
     return {'items': [{key: getattr(row, key) for key in fields} for row in rows], 'total': total, 'limit': limit, 'offset': offset}
+
+
+@router.get('/course-runs/{run_id}/learning-activity')
+def learning_activity(run_id: UUID, context: AuthContext = Depends(get_auth), db: Session = Depends(get_db)):
+    run, enrollment = student_enrollment(db, run_id, context)
+    now = utcnow()
+    start, cutoff = cutoff_bounds(run.course_run_start_date, run.timezone)
+    today = now.astimezone(ZoneInfo(run.timezone)).date()
+    window_days = CUTOFF_DAY + 1
+    completed_days = min(window_days, max(0, (today - run.course_run_start_date).days))
+    local_day = func.date(func.timezone(run.timezone, LearningEvent.occurred_at))
+    active_days, page_views = db.execute(select(func.count(local_day.distinct()), func.count()).where(
+        LearningEvent.enrollment_id == enrollment.id, LearningEvent.type == 'page_view',
+        LearningEvent.schema_version == 'learning_event_v1', LearningEvent.data_origin == run.data_origin,
+        LearningEvent.occurred_at >= start, LearningEvent.occurred_at <= now,
+        LearningEvent.received_at <= now)).one()
+
+    other_runs = select(CourseRun).join(Enrollment).where(
+        Enrollment.student_id == enrollment.student_id, Enrollment.status == 'active',
+        CourseRun.id != run.id).order_by(
+        (CourseRun.course_id == run.course_id).desc(), (CourseRun.status == 'active').desc(),
+        CourseRun.course_run_start_date.desc(), CourseRun.id)
+    if run.data_origin == 'real':
+        demos = db.scalars(other_runs.where(
+            CourseRun.data_origin == 'synthetic', CourseRun.status == 'closed', CourseRun.code == 'ML_DEMO_42',
+            CourseRun.listed.is_(False), CourseRun.enrollment_mode == 'invite_only'))
+        linked = next((demo for demo in demos if cutoff_bounds(
+            demo.course_run_start_date, demo.timezone)[1] <= now), None)
+    else:
+        linked = db.scalar(other_runs.where(CourseRun.data_origin == 'real', CourseRun.status.in_(('active', 'closed'))).limit(1))
+    return {
+        'active_days': active_days, 'page_views': page_views,
+        'starts_at': start, 'started': now >= start, 'timezone': run.timezone,
+        'completed_days': completed_days, 'window_days': window_days, 'cutoff_end_at': cutoff,
+        'linked_run': {'id': linked.id, 'course_id': linked.course_id, 'code': linked.code} if linked else None,
+    }
 
 
 @router.get('/course-runs/{run_id}/report')
