@@ -116,7 +116,7 @@
   min-width: 0;
   color: #20342e;
 }
-.site-shell input,
+.site-shell input:where(:not([type='checkbox']):not([type='radio'])),
 .site-shell select,
 .site-shell textarea {
   border: 1px solid #acbdb0;
@@ -140,6 +140,25 @@
   display: grid;
   gap: 8px;
   min-width: 0;
+}
+.site-shell label:has(> input:is([type='checkbox'], [type='radio'])) {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.site-shell label > input:is([type='checkbox'], [type='radio']) {
+  appearance: auto;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  margin: 3px 0 0;
+  flex: 0 0 20px;
+  accent-color: #246148;
 }
 .site-shell input[readonly] {
   background: #edf1eb;

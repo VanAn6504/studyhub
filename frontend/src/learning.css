@@ -357,4 +357,3 @@
 .rag-scope summary { cursor: pointer; padding: 12px 0; min-height: 44px; }
 .rag-range { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
 .site-shell .learning-form .review-confirm { display: flex; flex-direction: row; align-items: flex-start; }
-.site-shell .review-confirm input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0; flex: 0 0 16px; }

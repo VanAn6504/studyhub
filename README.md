@@ -179,7 +179,7 @@ Không cần migration mới cho bố cục này. Việc đổi giao diện khô
 - Trong **Tài liệu**, chọn **Chỉnh sửa thông tin** để đổi mã/tên. Đánh dấu **Thay file PDF — xóa file cũ**, chọn **PDF thay thế** rồi lưu để thay nội dung ngay trong form. File mới phải hợp lệ trước khi file cũ bị xóa. Sau khi thay, tài liệu về nháp, tắt RAG và bỏ liên kết trang cũ; kiểm tra/gắn lại chủ đề/công bố. Có thể dùng **Thêm phiên bản PDF** trong trang chi tiết khi muốn giữ các file cũ thay vì xóa chúng.
 - **Xóa tài liệu** yêu cầu xác nhận rồi xóa vĩnh viễn tài liệu và mọi file PDF của nó, gỡ liên kết chủ đề và xóa corpus/embedding/trạng thái RAG. Không có thùng rác/khôi phục. Điểm, quiz và log đã ghi được giữ; nguồn PDF đã xóa/thay không mở được và không tự trỏ sang file mới. Mã tài liệu được dùng lại sau khi xóa.
 - Trong **Biên soạn quiz**, nhập JSON đúng cấu trúc `quiz_draft.json`; tối đa 1 MiB, 1000 câu trong file nhiều chủ đề và 100 câu của chủ đề đang chọn mỗi lần nhập. Hệ thống nhập các câu có trong file, bỏ qua mã đã tồn tại và tự chọn các câu thuộc lần nhập đó. File cần có đủ câu cho chủ đề; không tự sinh thêm câu hỏi.
-- Dùng **Chọn 10 câu**, **Chọn 20 câu**, **Chọn tất cả câu** hoặc tích từng câu. Nút chọn nhanh lấy các câu đầu trong ngân hàng đang hiển thị; chỉ bật khi đủ câu. Mỗi quiz hỗ trợ **3–100 câu**. Tạo nháp → kiểm tra câu hỏi/đáp án/nguồn → xác nhận → công bố.
+- Tích từng câu hoặc dùng ô **Chọn tất cả câu** để chọn và bỏ chọn hàng loạt. Dấu gạch trong ô cho biết đang chọn một phần ngân hàng. Ngân hàng trên 100 câu có lựa chọn **Chọn 100 câu đầu**. Mỗi quiz hỗ trợ **3–100 câu**. Tạo nháp → kiểm tra câu hỏi/đáp án/nguồn → xác nhận → công bố.
 
 API quản lý tài liệu (chỉ chủ sở hữu học phần; thao tác ghi yêu cầu CSRF):
 

@@ -453,6 +453,8 @@ test(
       p = f.page
     try {
       await p.getByRole('button', { name: 'Chỉnh sửa thông tin', exact: true }).click()
+      assert.equal(await p.getByLabel('Hiển thị trong thư viện học phần', { exact: true })
+        .evaluate(input => input.getBoundingClientRect().width), 20)
       await p.getByLabel('Mã tài liệu', { exact: true }).fill('DUPLICATE')
       await p.getByLabel('Tên tài liệu', { exact: true }).fill('Updated PDF title')
       await p.getByRole('button', { name: 'Lưu thông tin', exact: true }).click()
@@ -526,7 +528,7 @@ test(
 )
 
 test(
-  'JSON import selects 20 topic questions, supports 10/20 quiz creation and skips existing codes',
+  'JSON import supports individual and bulk question selection with compact checkboxes',
   { timeout: 60000 },
   async () => {
     const f = await workspace('teacher'),
@@ -535,7 +537,9 @@ test(
       await p.getByRole('button', { name: 'Chủ đề', exact: true }).click()
       await p.getByRole('button', { name: 'Quản lý chủ đề', exact: true }).click()
       await p.getByRole('button', { name: 'Biên soạn quiz', exact: true }).click()
-      assert.ok(await p.getByRole('button', { name: 'Chọn 10 câu', exact: true }).isDisabled())
+      assert.equal(await p.getByRole('button', { name: /Chọn (10|20) câu/ }).count(), 0)
+      const bulk = p.getByRole('checkbox', { name: 'Chọn tất cả câu', exact: true })
+      assert.ok(await bulk.isDisabled())
       const items = Array.from({ length: 20 }, (_, i) => ({
         id: `Q${i}`,
         topic_id: 'FL01',
@@ -577,15 +581,37 @@ test(
         0,
       )
       assert.equal(f.questions.length, 20)
-      await p.getByRole('button', { name: 'Chọn 10 câu', exact: true }).click()
+      const checkboxes = p.locator('.question-select input[type="checkbox"]')
+      for (const width of [1440, 390]) {
+        await p.setViewportSize({ width, height: 900 })
+        const geometry = await checkboxes.first().evaluate(input => {
+          const box = input.getBoundingClientRect(), label = input.closest('label')
+          const text = label.querySelector('span').getBoundingClientRect()
+          return { width: box.width, height: box.height, textX: text.x, right: box.right,
+            direction: getComputedStyle(label).flexDirection, display: getComputedStyle(label).display }
+        })
+        assert.equal(geometry.width, 20)
+        assert.equal(geometry.height, 20)
+        assert.equal(geometry.direction, 'row')
+        assert.equal(geometry.display, 'flex')
+        assert.ok(geometry.textX >= geometry.right, 'Question text follows its checkbox')
+        assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      }
+      for (const checkbox of (await checkboxes.all()).slice(10)) await checkbox.uncheck()
+      await p.getByText('Đã chọn 10/20 câu', { exact: true }).waitFor()
+      assert.ok(await bulk.evaluate(input => input.indeterminate))
       await p.getByRole('button', { name: 'Tạo quiz nháp (10 câu)', exact: true }).click()
       await p.getByRole('heading', { name: 'Rà soát quiz bản 1', exact: true }).waitFor()
       assert.equal(f.quizzes[0].items.length, 10)
-      await p.getByRole('button', { name: 'Chọn 20 câu', exact: true }).click()
+      await bulk.focus()
+      await p.keyboard.press('Space')
+      await p.getByText('Đã chọn 20/20 câu', { exact: true }).waitFor()
       await p.getByRole('button', { name: 'Tạo quiz nháp (20 câu)', exact: true }).click()
       await p.getByRole('heading', { name: 'Rà soát quiz bản 2', exact: true }).waitFor()
+      assert.equal(await p.getByLabel('Tôi đã kiểm tra câu hỏi, đáp án và trang nguồn.', { exact: true })
+        .evaluate(input => input.getBoundingClientRect().width), 20)
       assert.equal(f.quizzes[1].items.length, 20)
-      await p.getByRole('button', { name: 'Bỏ chọn tất cả', exact: true }).click()
+      await bulk.uncheck()
       assert.ok(
         await p.getByRole('button', { name: 'Tạo quiz nháp (0 câu)', exact: true }).isDisabled(),
       )

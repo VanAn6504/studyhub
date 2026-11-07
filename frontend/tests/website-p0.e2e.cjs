@@ -50,6 +50,15 @@ async function shot(page,name) {
   await fs.mkdir(output,{recursive:true})
   await page.screenshot({path:path.join(output,name),fullPage:true})
 }
+async function checkChoiceLayout(page) {
+  for (const input of await page.locator('input[type="checkbox"], input[type="radio"]').all()) {
+    if (!(await input.isVisible())) continue
+    const box = await input.boundingBox()
+    assert.equal(box.width,20,'Choice control must keep its compact width')
+    assert.equal(box.height,20,'Choice control must keep its compact height')
+    assert.equal(await input.evaluate(node => getComputedStyle(node.closest('label')).flexDirection),'row')
+  }
+}
 async function enrollSettings(runId,mode,capacity=1) {
   const settings=await api(teacher,'GET',`/teaching/runs/${runId}/admissions`)
   return api(teacher,'PATCH',`/teaching/runs/${runId}/admissions`,{enrollment_mode:mode,listed:true,opens_at:null,closes_at:null,capacity,expected_revision:settings.admissions_revision})
@@ -88,6 +97,7 @@ test('guest search -> registration/login preserves class intent -> approval -> P
   await p.getByText('Đã chọn 20/20 câu',{exact:true}).waitFor()
   await p.getByRole('button',{name:'Tạo quiz nháp (20 câu)',exact:true}).click()
   await p.getByRole('heading',{name:'Rà soát quiz bản 1',exact:true}).waitFor()
+  await checkChoiceLayout(p)
   await p.getByLabel('Tôi đã kiểm tra câu hỏi, đáp án và trang nguồn.',{exact:true}).check()
   await p.getByRole('button',{name:'Công bố quiz cho sinh viên',exact:true}).click()
   await p.getByText('Đã công bố quiz cho sinh viên.',{exact:true}).waitFor()
@@ -118,12 +128,14 @@ test('guest search -> registration/login preserves class intent -> approval -> P
   await p.getByRole('button',{name:'Xem trước giới thiệu',exact:true}).click()
   await p.getByRole('region',{name:'Bản xem trước giới thiệu',exact:true}).waitFor()
   await p.getByLabel('Tôi đã xem trước và kiểm tra thông tin sẽ công khai.',{exact:true}).check()
+  await checkChoiceLayout(p)
   await p.getByRole('button',{name:'Công bố giới thiệu',exact:true}).click()
   await p.getByText('Đã công bố thông tin giới thiệu trong danh mục.',{exact:true}).waitFor()
   publication=await api(teacher,'GET',`/teaching/courses/${course.id}/publication`)
   await p.goto(origin+`/teaching/runs/${run.id}/admissions`,{waitUntil:'networkidle'})
   await p.getByLabel('Hình thức tham gia',{exact:true}).selectOption('approval')
   await p.getByLabel('Giới thiệu lớp trên trang học phần đã công bố',{exact:true}).check()
+  await checkChoiceLayout(p)
   await p.getByLabel('Giới hạn chỗ · để trống nếu không giới hạn',{exact:true}).fill('1')
   await p.getByRole('button',{name:'Lưu cấu hình tuyển sinh',exact:true}).click()
   await p.getByText('Đã lưu cấu hình tuyển sinh.',{exact:true}).waitFor()
@@ -184,6 +196,7 @@ test('guest search -> registration/login preserves class intent -> approval -> P
   await s.getByRole('button',{name:'Làm quiz',exact:true}).click()
   await s.getByRole('button',{name:'Bắt đầu / tiếp tục quiz',exact:true}).click()
   await s.locator('.quiz-question').nth(19).waitFor()
+  await checkChoiceLayout(s)
   for(const question of await s.locator('.quiz-question').all())await question.getByRole('radio').first().check()
   s.once('dialog',d=>d.dismiss())
   await s.locator('.site-header').getByRole('link',{name:'Tổng quan',exact:true}).click()

@@ -111,6 +111,8 @@ export default function TeacherQuizEditor({
     (question, index, all) =>
       all.findIndex((value) => value.question_id === question.question_id) === index,
   )
+  const bulkQuestions = latest.slice(0, 100)
+  const bulkSelected = bulkQuestions.length > 0 && bulkQuestions.every(question => chosen.includes(question.id))
   async function saveQuestion(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
@@ -386,47 +388,30 @@ export default function TeacherQuizEditor({
         />
       </label>
       <p className="muted">
-        Mỗi quiz có từ 3 đến 100 câu; có thể tạo bộ 10 hoặc 20 câu. Mỗi câu 1 điểm, ngưỡng đạt 70%.
-        Tệp cần có đủ số câu cho chủ đề đang chọn; hệ thống nhập các câu có trong tệp.
+        Chọn từ 3 đến 100 câu để tạo quiz. Mỗi câu 1 điểm, đạt từ 70%.
+        Câu hỏi nhập từ tệp được chọn sẵn để bạn rà soát và bỏ những câu không cần dùng.
       </p>
       <div className="workspace-actions quiz-selection-tools">
         <strong>
           Đã chọn {chosen.length}/{latest.length} câu
         </strong>
-        {[10, 20].map((count) => (
-          <button
-            type="button"
-            className="button button-secondary"
-            key={count}
-            disabled={busy || latest.length < count}
-            onClick={() => setChosen(latest.slice(0, count).map((q) => q.id))}
-          >
-            Chọn {count} câu
-          </button>
-        ))}
-        <button
-          type="button"
-          className="button button-secondary"
-          disabled={busy || !latest.length}
-          onClick={() => setChosen(latest.slice(0, 100).map((q) => q.id))}
-        >
+        <label>
+          <input
+            type="checkbox"
+            checked={bulkSelected}
+            ref={input => { if (input) input.indeterminate = chosen.length > 0 && !bulkSelected }}
+            disabled={busy || loading || !latest.length}
+            onChange={event => setChosen(event.target.checked ? bulkQuestions.map(question => question.id) : [])}
+          />
           {latest.length > 100 ? 'Chọn 100 câu đầu' : 'Chọn tất cả câu'}
-        </button>
-        <button
-          type="button"
-          className="text-button"
-          disabled={busy || !chosen.length}
-          onClick={() => setChosen([])}
-        >
-          Bỏ chọn tất cả
-        </button>
+        </label>
       </div>
       {latest.map((question) => (
         <div className="question-select" key={question.id}>
           <label>
             <input
               type="checkbox"
-              disabled={busy || (!chosen.includes(question.id) && chosen.length >= 100)}
+              disabled={busy || loading || (!chosen.includes(question.id) && chosen.length >= 100)}
               checked={chosen.includes(question.id)}
               onChange={(event) =>
                 setChosen((values) =>
@@ -466,7 +451,7 @@ export default function TeacherQuizEditor({
       )}
       <button
         className="button button-secondary"
-        disabled={busy || chosen.length < 3 || chosen.length > 100}
+        disabled={busy || loading || chosen.length < 3 || chosen.length > 100}
         onClick={createQuiz}
       >
         Tạo quiz nháp ({chosen.length} câu)
