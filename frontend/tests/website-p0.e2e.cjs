@@ -168,7 +168,7 @@ test('guest search -> registration/login preserves class intent -> approval -> P
   const prediction = await (await currentForecast).json()
   assert.equal(prediction.status,'ok')
   assert.equal(prediction.feature_snapshot.active_days,0)
-  await s.locator('.risk-score').getByText(/Dữ liệu thật/).waitFor()
+  await s.locator('.risk-score').getByText('Dữ liệu học tập của bạn', { exact: true }).waitFor()
   await s.getByRole('button',{name:'Làm quiz ML01',exact:true}).click()
   await s.getByRole('button',{name:'Bắt đầu / tiếp tục quiz',exact:true}).waitFor()
   await s.getByRole('button',{name:'Nội dung học phần',exact:true}).click()

@@ -35,7 +35,7 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
     course_title: 'PDF regression fixture',
     code: 'RUN_PDF',
     status: 'active',
-    data_origin: 'real',
+    data_origin: reader.demo ? 'synthetic' : 'real',
     course_run_start_date: '2026-10-06',
     timezone: 'Asia/Bangkok',
   }
@@ -237,15 +237,15 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
         window_days: 43, cutoff_end_at: '2026-11-17T17:00:00Z',
         linked_run: null,
       }
-    else if (path.endsWith('/engagement-forecast') && method === 'GET')
-      payload = {
+    else if ((path.endsWith('/engagement-forecast') || path.endsWith('/prediction')) && method === 'GET')
+      payload = reader.savedForecast || {
         status: reader.forecast ? 'not_computed' : 'not_ready',
         risk_score: null,
         cutoff_end_at: '2026-11-17T17:00:00Z',
         data_origin: 'real',
       }
     else if (path.endsWith('/engagement-forecast') && method === 'POST') {
-      payload = { status: ++forecastAttempts === 1 ? 'model_unavailable' : 'outside_range',
+      payload = reader.updatedForecast || { status: ++forecastAttempts === 1 ? 'model_unavailable' : 'outside_range',
         risk_score: null, cutoff_end_at: '2026-11-17T17:00:00Z', data_origin: 'real' }
     }
     else if (path.endsWith('/chat-sessions'))
@@ -349,6 +349,7 @@ async function workspace(role = 'student', failFirstEvent = false, reader = {}) 
     )
     await page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
     await page.locator('.guidance-panel').waitFor()
+    if (reader.savedForecast) return { context, page, errors }
     if (!reader.forecast) {
       await page.getByText('Chưa hoàn tất ngày học đầu tiên.', { exact: false }).waitFor()
       await page.getByText(reader.futureRun ? 'Lớp chưa bắt đầu. Ngày bắt đầu' : 'Chưa bắt đầu học trên StudyHub.', { exact: false }).waitFor()
@@ -378,14 +379,14 @@ test('prediction separates uncomputed, unavailable model and unsupported day wit
   const { page } = fixture
   try {
     await page.getByRole('button', { name: 'Lộ trình & tiến độ', exact: true }).click()
-    await page.getByText('Chưa có điểm cho mốc dữ liệu này.', { exact: false }).waitFor()
+    await page.getByText('Chưa có dự báo mới.', { exact: false }).waitFor()
     assert.equal(fixture.requests.filter(r => r.path.endsWith('/engagement-forecast') && r.method === 'POST').length, 0)
     const compute = page.getByRole('button', { name: 'Cập nhật đánh giá', exact: true })
     await compute.click()
-    await page.getByText('Mô hình chưa sẵn sàng.', { exact: false }).waitFor()
+    await page.getByText('Chưa thể tính dự báo lúc này.', { exact: false }).waitFor()
     assert.equal(await page.locator('.risk-score').count(), 0)
     await compute.click()
-    await page.getByText('Thời điểm này nằm ngoài dải ngày đã kiểm thử của mô hình.').waitFor()
+    await page.getByText('Hiện chưa có dự báo cho giai đoạn này của lớp.', { exact: false }).waitFor()
     assert.equal(await page.locator('.risk-score').count(), 0)
   } finally {
     await fixture.context.close()
@@ -395,6 +396,53 @@ test('prediction separates uncomputed, unavailable model and unsupported day wit
 test('prediction shows the start date and no score before the class begins', async () => {
   const fixture = await workspace('student', false, { futureRun: true })
   await fixture.context.close()
+})
+
+test('prediction presents the saved score and reasons in plain Vietnamese for real and demo classes', async () => {
+  const savedForecast = {
+    status: 'ok', risk_score: 0.555808, threshold_exceeded: true, model_code: 'internal_fixture',
+    cutoff_end_at: '2026-11-17T17:00:00Z', explanation: {
+      base_value: 0.34,
+      contributions: [
+        { feature: 'active_days', value: 0, contribution: 0.14 },
+        { feature: 'days_since_last_activity', value: 43, contribution: 0.05 },
+        { feature: 'mean_assessment_score', value: null, contribution: -0.01 },
+        { feature: 'unknown_feature', value: 1, contribution: 0.02 },
+      ],
+    },
+  }
+  const real = await workspace('student', false, {
+    savedForecast, updatedForecast: { ...savedForecast, risk_score: 0.15, threshold_exceeded: false },
+  })
+  try {
+    const panel = real.page.locator('.risk-panel')
+    await panel.getByText('Nên chú ý việc học', { exact: false }).waitFor()
+    await panel.getByText('55,6 trên 100', { exact: true }).waitFor()
+    await panel.getByText('Vì sao có dự báo này?', { exact: true }).click()
+    await panel.getByText('Chưa có lượt xem tài liệu kể từ đầu lớp.', { exact: true }).waitFor()
+    await panel.getByText('Chưa có điểm quiz để tham khảo.', { exact: true }).waitFor()
+    assert.doesNotMatch(await panel.innerText(), /SHAP|internal_fixture|unknown_feature|cách ngày cuối/)
+    await real.page.getByRole('button', { name: 'Cập nhật đánh giá', exact: true }).click()
+    await panel.getByText('Ít dấu hiệu cần chú ý', { exact: false }).waitFor()
+    await panel.getByText('15 trên 100', { exact: true }).waitFor()
+  } finally {
+    await real.context.close()
+  }
+  const demo = await workspace('student', false, { demo: true, savedForecast: {
+    ...savedForecast, explanation: { base_value: 0.34, contributions: [
+      { feature: 'active_days', value: 3, contribution: 0.14 },
+      { feature: 'days_since_last_activity', value: 0, contribution: -0.05 },
+    ] },
+  } })
+  try {
+    const panel = demo.page.locator('.risk-panel')
+    await panel.getByText('Dữ liệu mô phỏng', { exact: true }).waitFor()
+    await panel.getByText('Vì sao có dự báo này?', { exact: true }).click()
+    await panel.getByText('Điều làm điểm cảnh báo giảm', { exact: true }).waitFor()
+    await panel.getByText('Có xem tài liệu vào ngày cuối được tính.', { exact: true }).waitFor()
+  } finally {
+    await demo.context.close()
+  }
 })
 
 test(

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from './api'
 import type { CourseRun, Topic } from './api'
 import type { LearningActivity, LearningPath, PredictionResult } from './learningTypes'
+import ForecastSummary from './ForecastSummary'
 
 export const stateLabels: Record<string, string> = {
   weak: 'Cần ôn tập', mastered: 'Đã đạt', not_assessed: 'Chưa đánh giá', not_available: 'Chưa có quiz',
@@ -9,13 +10,6 @@ export const stateLabels: Record<string, string> = {
 const reasons: Record<string, string> = {
   low_quiz_score: 'Điểm quiz chưa đạt ngưỡng.', no_current_assessment: 'Bạn chưa làm quiz hiện tại.',
   content_changed: 'Có quiz mới; cần đánh giá lại.', unassessed_prerequisite: 'Học chủ đề tiên quyết trước.',
-}
-const featureLabels: Record<string, string> = {
-  active_days: 'Số ngày có xem trang', material_interactions: 'Số lượt xem trang',
-  days_since_last_activity: 'Số ngày từ hoạt động cuối', assessment_count: 'Số quiz đã đánh giá',
-  mean_assessment_score: 'Điểm trung bình lần đầu', has_assessment: 'Có kết quả quiz',
-  elapsed_days: 'Ngày lịch đã hoàn tất', active_days_7: 'Ngày có xem trong 7 ngày',
-  distinct_resources: 'Tài liệu khác nhau đã xem',
 }
 const deadlineLabels = {
   upcoming: 'Chưa đến hạn', due_soon: 'Sắp đến hạn', overdue: 'Quá hạn chưa nộp', archived: 'Phiên bản cũ',
@@ -216,8 +210,8 @@ export default function GuidancePanel({ run, csrfToken, refresh, activityRefresh
     </>}
     </details>
     <div className="risk-panel">
-      <h3>Dự báo rủi ro thử nghiệm</h3>
-      <p className="muted">Mô hình học từ OULAD, chưa xác nhận trên sinh viên StudyHub. Điểm chưa hiệu chỉnh xác suất, không quyết định việc đạt từng chủ đề.</p>
+      <h3>Dự báo để bạn theo dõi việc học</h3>
+      <p className="muted">Dự báo đang được thử nghiệm. Kết quả chỉ để tham khảo khi học và không ảnh hưởng đến điểm quiz hay kết quả học phần.</p>
       {predictionLoading && <p role="status">Đang tải trạng thái dự báo…</p>}
       {predictionError && <p className="notice notice-error" role="alert">{predictionError}</p>}
       {synthetic && prediction?.status === 'not_ready' && <>
@@ -226,22 +220,14 @@ export default function GuidancePanel({ run, csrfToken, refresh, activityRefresh
         {prediction.cutoff_end_at && <p>Có thể tính sớm nhất từ {dateTime(prediction.cutoff_end_at)} ({run.timezone}).</p>}
       </>}
       {!synthetic && prediction?.status === 'not_ready' && <p>Chưa hoàn tất ngày học đầu tiên. Bạn vẫn có thể cập nhật tình hình học tập.</p>}
-      {!synthetic && prediction?.cutoff_end_at && <p>Dữ liệu dự báo chốt trước {dateTime(prediction.cutoff_end_at)} ({run.timezone}).</p>}
-      {prediction?.status === 'outside_range' && <p>Thời điểm này nằm ngoài dải ngày đã kiểm thử của mô hình.</p>}
-      {prediction?.status === 'not_computed' && <p>{synthetic ? 'Đã qua mốc thời gian. Chưa tính dự báo cho lớp học này.' : 'Chưa có điểm cho mốc dữ liệu này. Bấm Cập nhật đánh giá để tính.'}</p>}
-      {prediction?.status === 'model_unavailable' && <p>Mô hình chưa sẵn sàng. Bạn có thể thử lại hoặc liên hệ người vận hành.</p>}
-      {prediction?.status === 'insufficient_data' && <p>Chưa đủ dữ liệu: không có lượt xem trang hợp lệ trong cửa sổ dự báo.</p>}
-      {synthetic && activity && <p className="muted">Hết cửa sổ dự báo lúc {dateTime(activity.cutoff_end_at)} ({activity.timezone}).</p>}
-      {prediction?.status === 'ok' && prediction.risk_score !== null && <>
-        <p className="risk-score">{(prediction.risk_score * 100).toFixed(1)}/100 <span>{synthetic ? 'Dữ liệu mô phỏng' : 'Dữ liệu thật'} · {prediction.threshold_exceeded ? 'Đạt hoặc vượt ngưỡng thử nghiệm' : 'Dưới ngưỡng thử nghiệm'}</span></p>
-        {synthetic && <p>Mô hình chạy thật trên dữ liệu mô phỏng.</p>}
-        {prediction.threshold !== undefined && <p className="muted">Ngưỡng {(prediction.threshold * 100).toFixed(1)}/100 · mô hình {prediction.model_code}</p>}
-        {prediction.computed_at && <p className="muted">Tính lúc {dateTime(prediction.computed_at)} ({run.timezone}).</p>}
-        {prediction.explanation && <details><summary>Đặc trưng và giải thích điểm</summary>
-          <p>SHAP mô tả đóng góp của các đặc trưng vào điểm. Mốc nền {(prediction.explanation.base_value * 100).toFixed(1)} điểm.</p>
-          {prediction.explanation.contributions.map(item => <p key={item.feature}>{featureLabels[item.feature]}: {item.value === null ? 'Thiếu dữ liệu' : item.value.toFixed(1)} · đóng góp {item.contribution >= 0 ? '+' : ''}{(item.contribution * 100).toFixed(2)} điểm</p>)}
-        </details>}
-      </>}
+      {!synthetic && prediction?.cutoff_end_at && <p>Dự báo dùng hoạt động trước {dateTime(prediction.cutoff_end_at)} (giờ của lớp).</p>}
+      {prediction?.status === 'outside_range' && <p>Hiện chưa có dự báo cho giai đoạn này của lớp. Bạn vẫn có thể xem tiến độ và gợi ý học tiếp.</p>}
+      {prediction?.status === 'not_computed' && <p>{synthetic ? 'Bấm Tính dự báo để xem kết quả của lớp mô phỏng.' : 'Chưa có dự báo mới. Bấm Cập nhật đánh giá để xem.'}</p>}
+      {prediction?.status === 'model_unavailable' && <p>Chưa thể tính dự báo lúc này. Bạn có thể thử lại sau.</p>}
+      {prediction?.status === 'insufficient_data' && <p>Chưa đủ dữ liệu để dự báo vì chưa ghi nhận lượt xem tài liệu trong khoảng thời gian được tính.</p>}
+      {synthetic && activity && <p className="muted">Dự báo dùng hoạt động mô phỏng trước {dateTime(activity.cutoff_end_at)} (giờ của lớp).</p>}
+      {prediction && <ForecastSummary prediction={prediction} synthetic={synthetic} />}
+      {prediction?.status === 'ok' && prediction.computed_at && <p className="muted">Cập nhật lúc {dateTime(prediction.computed_at)} (giờ của lớp).</p>}
       <div className="guidance-actions">
         {synthetic && !predictionLoading && prediction && prediction.status !== 'not_ready' && <button className="button button-secondary" disabled={computing} onClick={() => void compute()}>{computing ? 'Đang tính dự báo…' : 'Tính dự báo'}</button>}
         {activity?.linked_run && <button className="button button-secondary" onClick={() => onSwitchRun(activity.linked_run!)}>
